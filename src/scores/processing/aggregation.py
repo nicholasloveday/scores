@@ -5,11 +5,15 @@ Functions related to aggregating data
 import warnings
 from typing import Optional
 
+import numpy as np
 import xarray as xr
 
 from scores.processing.matching import broadcast_and_match_nan
 from scores.typing import FlexibleDimensionTypes, XarrayLike
 from scores.utils import check_weights
+
+
+SUPPORTED_METHODS_STR = ["mean", "sum"]
 
 
 def aggregate(
@@ -84,10 +88,18 @@ def aggregate(
             if weights is not None:
                 return _weighted_mean(values, weights, reduce_dims)
             return values.mean(reduce_dims)
-        case "sum":  # pragma: no cover - invalid method is checked in `_check_aggregate_inputs`
+        case "sum":
             if weights is not None:
                 return _weighted_sum(values, weights, reduce_dims)
             return values.sum(reduce_dims)
+        case _:
+            # already checked in check_weights
+            raise RuntimeError("unreachable")
+
+
+def raise_if_invalid_aggregation_method(method: str):
+    if (not isinstance(method, str)) or (method not in SUPPORTED_METHODS_STR):
+        raise ValueError(f"Method must be one of {SUPPORTED_METHODS_STR}, got '{method}'")
 
 
 def _weighted_mean(
@@ -100,6 +112,10 @@ def _weighted_mean(
 
     xarray doesn't allow ``.weighted`` to take ``xr.Dataset`` as weights, so we need to do it ourselves
     """
+    # safety
+    assert reduce_dims is not None
+    assert weights is not None
+
     if isinstance(weights, xr.Dataset):
         w_results = {}
         for name, da in values.data_vars.items():
@@ -110,7 +126,9 @@ def _weighted_mean(
             # has at least one positive value and will raise an error.
             # However, if a value in w_aligned.sum(dim=reduce_dims) is zero,
             # a NaN will be produced for that point.
-            w_results[name] = (da_aligned * w_aligned).sum(dim=reduce_dims) / w_aligned.sum(dim=reduce_dims)
+            w_numerator = (da_aligned * w_aligned).sum(dim=reduce_dims)
+            w_denominator = w_aligned.sum(dim=reduce_dims)
+            w_results[name] = w_numerator / w_denominator
 
         return xr.Dataset(w_results)
 
@@ -126,12 +144,56 @@ def _weighted_sum(
 ) -> XarrayLike:
     """
     Calculated the weighted sum of `values` using `weights` over specified dimensions.
+
+    TODO: install opt_einsum for optimized summations.
     """
-    values = values.weighted(weights)
-    summed_values = values.sum(reduce_dims)
-    # Handle NaNs in `values`
-    summed_values = summed_values.where(~xr.ufuncs.isnan(values.mean(reduce_dims)))
-    return summed_values
+    def _align_and_fillzero(_v, _w, _dims):
+        fn_nan = xr.ufuncs.isnan
+        v_aligned, w_aligned = broadcast_and_match_nan(_v, _w)
+
+        # zero out masked values since they don't need to be summed
+        result = (v_aligned.fillna(0), w_aligned.fillna(0))
+
+        # get reduced mask to mask out nans
+        # - only need to do this for v_aligned, since w_aligned is matched.
+        nan_mask = xr.ufuncs.isnan(v_aligned).all(dim=_dims)
+
+        return result, nan_mask
+
+    def _reduce_sum(_v, _w, _dims):
+        _vw, nan_mask = _align_and_fillzero(_v, _w, _dims)
+        _v, _w = _vw
+        result = None
+
+        if _dims is None:
+            # None has a different behaviour in xr.dot
+            result = xr.dot(_v, _w)
+        else:
+            result = xr.dot(_v, _w, dim=_dims)
+
+        # safety
+        assert result is not None
+
+        return result.where(~nan_mask, np.nan)
+
+    if isinstance(values, xr.Dataset):
+        w_results = {}
+        # assume weights are data arrays
+        w = weights
+
+        for name, da in values.data_vars.items():
+            # if they are datasets, extract the underlying array instead
+            if isinstance(weights, xr.Dataset):
+                w = weights[name]
+            w_results[name] = _reduce_sum(da, w, reduce_dims)
+
+        return xr.Dataset(w_results)
+
+    # safety: These should already be checked
+    assert isinstance(values, xr.DataArray)
+    assert not isinstance(weights, xr.Dataset)
+
+    return _reduce_sum(values, weights, reduce_dims)
 
 
 def _check_aggregate_inputs(
@@ -155,8 +217,7 @@ def _check_aggregate_inputs(
         method: The aggregation method to use, either "mean" or "sum" in :py:func:`aggregate`.
 
     """
-    if method not in ["mean", "sum"]:
-        raise ValueError(f"Method must be either 'mean' or 'sum', got '{method}'")
+    raise_if_invalid_aggregation_method(method)
 
     if weights is not None:
         check_weights(weights)
@@ -173,10 +234,6 @@ def _check_aggregate_inputs(
         if weights is not None:
             # xarray doesn't allow .weighted to take xr.Dataset as weights, so we need to do it ourselves
             if isinstance(weights, xr.Dataset):
-                if method == "sum":
-                    raise NotImplementedError(
-                        "using the method 'sum' with weights that are xr.Datasets is not currently supported"
-                    )
                 if isinstance(values, xr.DataArray):
                     raise ValueError("`weights` cannot be an xr.Dataset when `values` is an xr.DataArray")
                 for name in values.data_vars:

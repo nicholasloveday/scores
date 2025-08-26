@@ -25,6 +25,7 @@ import numpy as np
 import xarray as xr
 
 import scores.continuous
+from scores.continuous.standard_impl import population_weighted_squared_error
 from scores.processing import broadcast_and_match_nan
 from scores.typing import (
     FlexibleDimensionTypes,
@@ -362,7 +363,7 @@ class NseMetaInput(NamedTuple):
         """
         # safety: dev/testing only
         assert isinstance(x1, xr.Dataset) and isinstance(x2, xr.Dataset)
-        ret: xr.Dataset = scores.continuous.mse(
+        ret: xr.Dataset = population_weighted_squared_error(
             x1,
             x2,
             reduce_dims=self.gathered_dims,

@@ -2,6 +2,7 @@
 This module contains standard methods which may be used for continuous scoring
 """
 
+import functools
 from typing import Optional, Union
 
 import numpy as np
@@ -10,12 +11,67 @@ import xarray as xr
 import scores.functions
 import scores.utils
 from scores.processing import aggregate, broadcast_and_match_nan
+from scores.processing.aggregation import raise_if_invalid_aggregation_method
 from scores.typing import (
     FlexibleArrayType,
     FlexibleDimensionTypes,
     XarrayLike,
     is_xarraylike,
 )
+
+
+def aggregate_squared_error(
+    fcst: FlexibleArrayType,
+    obs: FlexibleArrayType,
+    *,  # Force keywords arguments to be keyword-only
+    reduce_dims: Optional[FlexibleDimensionTypes] = None,
+    preserve_dims: Optional[FlexibleDimensionTypes] = None,
+    weights: Optional[xr.DataArray] = None,
+    is_angular: Optional[bool] = False,
+    aggregate_method: Optional[str] = "mean",
+):
+    """
+    Internal function used for aggregating squared errors.
+
+    For example weighted-mse is essentially a aggregate of squared errors with
+    a weighted mean.
+    """
+    raise_if_invalid_aggregation_method(aggregate_method)
+
+    if is_xarraylike(fcst) and is_xarraylike(obs):
+        reduce_dims = scores.utils.gather_dimensions(
+            fcst.dims,
+            obs.dims,
+            reduce_dims=reduce_dims,
+            preserve_dims=preserve_dims,
+        )
+
+    if is_angular:
+        error = scores.functions.angular_difference(fcst, obs)  # type: ignore
+    else:
+        error = fcst - obs  # type: ignore
+
+    squared = error * error
+
+    if is_xarraylike(squared):
+        result = aggregate(
+            squared,
+            reduce_dims=reduce_dims,
+            weights=weights,
+            method=aggregate_method,
+        )
+    else:
+        # support for non-xarray data with assumed sum/mean methods.
+        match aggregate_method:
+            case "sum":
+                result = squared.sum()
+            case "mean":
+                result = squared.mean()
+            case _:
+                # already checked at the top of the function
+                raise RuntimeError("unreachable")
+
+    return result
 
 
 def mse(
@@ -70,21 +126,106 @@ def mse(
             Otherwise: Returns an object representing the mean squared error,
             reduced along the relevant dimensions and weighted appropriately.
     """
-    if is_xarraylike(fcst):
-        reduce_dims = scores.utils.gather_dimensions(
-            fcst.dims, obs.dims, reduce_dims=reduce_dims, preserve_dims=preserve_dims
+    return aggregate_squared_error(
+        fcst,
+        obs,
+        reduce_dims=reduce_dims,
+        preserve_dims=preserve_dims,
+        weights=weights,
+        is_angular=is_angular,
+        aggregate_method="mean",
+    )
+
+
+def population_weighted_squared_error(
+    fcst: FlexibleArrayType,
+    obs: FlexibleArrayType,
+    *,  # Force keywords arguments to be keyword-only
+    reduce_dims: Optional[FlexibleDimensionTypes] = None,
+    preserve_dims: Optional[FlexibleDimensionTypes] = None,
+    weights: Optional[xr.DataArray] = None,
+    is_angular: bool = False,
+):
+    """
+    Like mse but scaled over the population count rather than the weighted norm.
+
+    Takes the same args & kwargs as mse.
+
+    NOTE:
+        - this function is currently only internally used
+        - it is somewhat equivilent to the old style of weighting (apart from
+          NaN handling)
+        - it can be faster for scores that are computed as weighted fractionals
+          over the same population, since it avoids having to compute the
+          weighted norm. (e.g. NSE)
+        - division by population count is a "safety" measure to avoid having to
+          process large numbers.
+    """
+    LARGE_POPULATION_THRESHOLD = 1e5
+
+    # weights is None - this is the same as mse
+    if weights is None:
+        return mse(
+            fcst,
+            obs,
+            reduce_dims=reduce_dims,
+            preserve_dims=preserve_dims,
+            weights=weights,
+            is_angular=is_angular,
         )
 
-    if is_angular:
-        error = scores.functions.angular_difference(fcst, obs)  # type: ignore
-    else:
-        error = fcst - obs  # type: ignore
-    squared = error * error
+    def _population_count_of_reduced_dims():
+        if is_xarraylike(fcst) and is_xarraylike(obs):
+            _reduce_dims = scores.utils.gather_dimensions(
+                fcst.dims,
+                obs.dims,
+                reduce_dims=reduce_dims,
+                preserve_dims=preserve_dims,
+            )
 
-    if is_xarraylike(squared):
-        result = aggregate(squared, reduce_dims=reduce_dims, weights=weights)
+            # attempt to get dimension length from forecast, else observation,
+            # else default to 1 (identity for product-type)
+            dim_lengths = [
+                fcst.sizes.get(
+                    _dim,
+                    obs.sizes.get(_dim, 1),
+                )
+                for _dim in _reduce_dims
+            ]
+
+            return np.prod(dim_lengths)
+
+        else:
+            # no reduction will be applied for non-xarraylike
+            return 1
+
+    population_count = _population_count_of_reduced_dims()
+    remaining_divisor = 1
+    is_large_population = population_count > LARGE_POPULATION_THRESHOLD
+
+    if is_large_population:
+        # if population is large, split divisor into two parts, pre-division
+        # and post-division
+        weights = weights / LARGE_POPULATION_THRESHOLD
+        remaining_divisor = population_count / LARGE_POPULATION_THRESHOLD
     else:
-        result = squared.mean()
+        # otherwise directly divide by population count
+        weights = weights / population_count
+
+    # compute sum with population scaled weights
+    result = aggregate_squared_error(
+        fcst,
+        obs,
+        reduce_dims=reduce_dims,
+        preserve_dims=preserve_dims,
+        weights=weights,
+        is_angular=is_angular,
+        aggregate_method="sum",
+    )
+
+    # population count is large - post divide result instead
+    if is_large_population:
+        result = result / remaining_divisor
 
     return result
 
