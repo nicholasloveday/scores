@@ -37,7 +37,7 @@ AggregateError_Critical = _aggregate_error_builder("CriticalError", RuntimeError
 # fmt: off
 
 # usage: raise ERROR_UNREACHABLE
-ERROR_UNREACHABLE = AggregateError_Compute(
+ERROR_UNREACHABLE = AggregateError_Critical(
     "CRITICAL FAILURE! Unreachable code, please raise a github ticket quoting "
     "any traceback logs."
 )
