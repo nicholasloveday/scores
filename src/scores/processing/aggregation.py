@@ -16,6 +16,57 @@ from scores.utils import check_weights
 SUPPORTED_METHODS_STR = ["mean", "sum"]
 
 
+def _aggregate_error_builder(name, error_type=Exception):
+    """
+    Generic builder for various input error types
+    """
+    return type(name, (error_type,), {})
+
+
+AggregateError_InputKey = _aggregate_error_builder("InputKeyError", KeyError)
+
+AggregateError_InputValue = _aggregate_error_builder("InputValueError", ValueError)
+
+AggregateError_InputType = _aggregate_error_builder("InputTypeError", TypeError)
+
+AggregateError_Compute = _aggregate_error_builder("ComputeError", ValueError)
+
+AggregateError_Critical = _aggregate_error_builder("CriticalError", RuntimeError)
+
+
+# black is not setup to format long strings properly
+# fmt: off
+
+# usage: raise ERROR_UNREACHABLE
+ERROR_UNREACHABLE = AggregateError_Compute(
+    "CRITICAL FAILURE! Unreachable code, please raise a github ticket quoting "
+    "any traceback logs."
+)
+
+# usage: raise ERROR_INVALID_METHOD("agg")
+ERROR_INVALID_METHOD = lambda method: AggregateError_InputValue(
+    "Method must be one of {}, got '{}'".format(SUPPORTED_METHODS_STR, method)
+)
+
+# usage: raise ERROR_WEIGHT_TYPE_MISMATCH
+ERROR_WEIGHT_TYPE_MISMATCH = AggregateError_InputType(
+    "`weights` cannot be an xr.Dataset when `values` is an xr.DataArray"
+)
+
+# usage: raise ERROR_UNSPECIFIED_WEIGHTS_FOR_VARIABLE("var")
+ERROR_UNSPECIFIED_WEIGHTS_FOR_VARIABLE = lambda var_name: AggregateError_InputKey(
+    "No weights provided for variable '{}'".format(var_name)
+)
+
+# usage: warnings.warn(WARN_WEIGHTS_IGNORED_STR)
+WARN_WEIGHTS_IGNORED_STR = (
+    "Weights were provided but the point-wise score across all dimensions is "
+    "being preserved.\nWeights will be ignored."
+)
+
+# fmt: on
+
+
 def aggregate(
     values: XarrayLike,
     *,
@@ -78,10 +129,14 @@ def aggregate(
         Dimensions without coordinates: y
 
     """
-    _check_aggregate_inputs(values, reduce_dims, weights, method)
-
+    # bypass any computation if no dimensions are being reduced. (identity function)
     if reduce_dims is None:
+        # warn user if weights are provided without any reduction specified.
+        if weights is not None:
+            warnings.warn(WARN_WEIGHTS_IGNORED_STR)
         return values
+
+    _check_aggregate_inputs(values, reduce_dims, weights, method)
 
     match method:
         case "mean":
@@ -93,13 +148,13 @@ def aggregate(
                 return _weighted_sum(values, weights, reduce_dims)
             return values.sum(reduce_dims)
         case _:
-            # already checked in check_weights
-            raise RuntimeError("unreachable")
+            # already checked in _check_aggregate_inputs
+            raise ERROR_UNREACHABLE
 
 
 def raise_if_invalid_aggregation_method(method: str):
     if (not isinstance(method, str)) or (method not in SUPPORTED_METHODS_STR):
-        raise ValueError(f"Method must be one of {SUPPORTED_METHODS_STR}, got '{method}'")
+        raise ERROR_INVALID_METHOD(method)
 
 
 def _weighted_mean(
@@ -145,8 +200,14 @@ def _weighted_sum(
     """
     Calculated the weighted sum of `values` using `weights` over specified dimensions.
 
-    TODO: install opt_einsum for optimized summations.
+    FUTUREWORK:
+        - xr.dot uses einsum, which has an "optimized" mode, which apparently
+          speeds things up a lot - research this.
+        - add opt_einsum as a dependency for optimized summations.
     """
+    # safety: checked in aggregate()
+    assert reduce_dims is not None
+
     def _align_and_fillzero(_v, _w, _dims):
         fn_nan = xr.ufuncs.isnan
         v_aligned, w_aligned = broadcast_and_match_nan(_v, _w)
@@ -154,42 +215,40 @@ def _weighted_sum(
         # zero out masked values since they don't need to be summed
         result = (v_aligned.fillna(0), w_aligned.fillna(0))
 
-        # get reduced mask to mask out nans
-        # - only need to do this for v_aligned, since w_aligned is matched.
+        # get reduced mask to preserve nans, post computation
+        # NOTE: only need to do this for v_aligned, since w_aligned is matched.
         nan_mask = xr.ufuncs.isnan(v_aligned).all(dim=_dims)
 
         return result, nan_mask
 
     def _reduce_sum(_v, _w, _dims):
-        _vw, nan_mask = _align_and_fillzero(_v, _w, _dims)
-        _v, _w = _vw
-        result = None
-
-        if _dims is None:
-            # None has a different behaviour in xr.dot
-            result = xr.dot(_v, _w)
-        else:
-            result = xr.dot(_v, _w, dim=_dims)
-
-        # safety
-        assert result is not None
-
+        (_v, _w), nan_mask = _align_and_fillzero(_v, _w, _dims)
+        result = xr.dot(_v, _w, dim=_dims)
         return result.where(~nan_mask, np.nan)
 
     if isinstance(values, xr.Dataset):
         w_results = {}
-        # assume weights are data arrays
-        w = weights
+        w = weights  # assume weights are arrays/dataarrays
 
         for name, da in values.data_vars.items():
-            # if they are datasets, extract the underlying array instead
+            # if weights are actually datasets, attempt to extract the
+            # appropriate variable
             if isinstance(weights, xr.Dataset):
+                # ---
+                # safety: this is already checked in _check_aggregate_inputs;
+                # if 'weights' is a dataset, it cannot be broadcast to an
+                # unspecified variable in 'values' and vice-versa, because a
+                # concept of a "default" does not exist.
+                if name not in weights:
+                    raise ERROR_UNREACHABLE
+                # ---
                 w = weights[name]
+
             w_results[name] = _reduce_sum(da, w, reduce_dims)
 
         return xr.Dataset(w_results)
 
-    # safety: These should already be checked
+    # safety: these are the only viable options
     assert isinstance(values, xr.DataArray)
     assert not isinstance(weights, xr.Dataset)
 
@@ -197,7 +256,7 @@ def _weighted_sum(
 
 
 def _check_aggregate_inputs(
-    values: XarrayLike, reduce_dims: FlexibleDimensionTypes | None, weights: XarrayLike | None, method: str
+    values: XarrayLike, reduce_dims: FlexibleDimensionTypes | None, weights: XarrayLike | None, method: str,
 ):
     """
     This function checks the inputs to the aggregate function.
@@ -215,27 +274,32 @@ def _check_aggregate_inputs(
         reduce_dims: The dimensions over which to apply the mean in :py:func:`aggregate`.
         weights: The weights to apply for weighted averaging in :py:func:`aggregate`.
         method: The aggregation method to use, either "mean" or "sum" in :py:func:`aggregate`.
-
     """
+    is_dataset = lambda maybe_ds: isinstance(maybe_ds, xr.Dataset)
+
     raise_if_invalid_aggregation_method(method)
 
     if weights is not None:
         check_weights(weights)
 
-    if reduce_dims is None and weights is not None:
-        warnings.warn(
-            """
-            Weights were provided but the point-wise score across all dimensions is being preserved. 
-            Weights will be ignored.
-            """,
-            UserWarning,
-        )
-    if reduce_dims is not None:
-        if weights is not None:
-            # xarray doesn't allow .weighted to take xr.Dataset as weights, so we need to do it ourselves
-            if isinstance(weights, xr.Dataset):
-                if isinstance(values, xr.DataArray):
-                    raise ValueError("`weights` cannot be an xr.Dataset when `values` is an xr.DataArray")
+        if reduce_dims is not None:
+            # ---
+            # weights cannot have more structural information than values
+            # i.e.
+            # weights = dataarray, values = dataset - OK
+            # weights = dataset, values = dataarray or numpy array - NOT OK
+            # if they are the same type - OK
+            if is_dataset(weights) and not is_dataset(values):
+                raise ERROR_WEIGHT_TYPE_MISMATCH
+            # ---
+
+            # ---
+            # if both `values` and `weights` are datasets,
+            # check that all variables in `values` are present in `weights`,
+            # otherwise `weights` is underspecified, and therefore the weighted
+            # aggregation is ambiguous.
+            if is_dataset(weights) and is_dataset(values):
                 for name in values.data_vars:
                     if name not in weights:
-                        raise KeyError(f"No weights provided for variable '{name}'")
+                        raise ERROR_UNSPECIFIED_WEIGHTS_FOR_VARIABLE(name)
+            # ---

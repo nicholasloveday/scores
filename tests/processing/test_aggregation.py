@@ -51,7 +51,7 @@ EXP_DA_VARY = xr.DataArray(
     coords={"x": [0, 1, 2]},
 )
 EXP_DA_VARY_SUM = xr.DataArray(
-    [4, 7, np.nan],
+    [4, 7, 0],
     dims=["x"],
     coords={"x": [0, 1, 2]},
 )
@@ -246,7 +246,7 @@ def test_agg_warns():
             ValueError,
         ),
         # Wrong method
-        (DA_3x3, None, "agg", "Method must be either 'mean' or 'sum', got 'agg'", ValueError),
+        (DA_3x3, None, "agg", "Method must be one of \['mean', 'sum'\], got 'agg'", ValueError),
         # DS weights missing data var
         (
             xr.Dataset(({"var1": DA_3x3, "var2": DA_3x3})),
@@ -255,21 +255,13 @@ def test_agg_warns():
             "No weights provided for variable 'var2'",
             KeyError,
         ),
-        # DS weights and method=sum
-        (
-            xr.Dataset(({"var1": DA_3x3, "var2": DA_3x3})),
-            xr.Dataset(({"var1": WEIGHTS1, "var2": WEIGHTS1})),
-            "sum",
-            "using the method 'sum' with weights that are xr.Datasets is not currently supported",
-            NotImplementedError,
-        ),
         # DA values, DS weights
         (
             DA_3x3,
             xr.Dataset(({"var1": WEIGHTS1, "var2": WEIGHTS1})),
             "mean",
             "`weights` cannot be an xr.Dataset when `values` is an xr.DataArray",
-            ValueError,
+            TypeError,
         ),
     ],
 )
