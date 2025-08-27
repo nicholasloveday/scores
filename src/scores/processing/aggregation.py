@@ -147,7 +147,7 @@ def aggregate(
                 return _weighted_sum(values, weights, reduce_dims)
             return values.sum(reduce_dims)
         case _:  # pragma: no cover
-            # already checked in _check_aggregate_inputs
+            # safety: checked in _check_aggregate_inputs()
             raise ERROR_UNREACHABLE
 
 
@@ -169,7 +169,7 @@ def _weighted_mean(
 
     xarray doesn't allow ``.weighted`` to take ``xr.Dataset`` as weights, so we need to do it ourselves
     """
-    # safety: checked in aggregate()
+    # safety: checked in _check_aggregate_inputs() and aggregate()
     assert reduce_dims is not None
     assert weights is not None
 
@@ -191,7 +191,7 @@ def _weighted_mean(
 
         return xr.Dataset(w_results)
 
-    # safety: weights should not be a dataset due to checks in _check_aggregate_inputs.
+    # safety: checked in _check_aggregate_inputs()
     # note: values can still be a dataset.
     assert not is_dataset(weights)
 
@@ -241,27 +241,27 @@ def _weighted_sum(
     # - weights = dataarray (or similar) and values = dataset
     if is_dataset(values):
         w_results = {}
-        w = weights  # assume weights are arrays/dataarrays
+        w = weights  # default: assume weights are arrays/dataarrays
 
+        # ---
+        # if `weights` is a dataset,
+        #   extract the `weights` array that matches the variable name in
+        #   `values` and use that to do the weighted sum;
+        # otherwise,
+        #   for all variables in `values`, perform weighted sum with the
+        #   constant `weights` array.
+        # ---
         for name, da in values.data_vars.items():
-            # if weights are actually datasets, attempt to extract the
-            # appropriate variable
             if is_dataset(weights):
-                # ---
-                # safety: this is already checked in _check_aggregate_inputs;
-                # if 'weights' is a dataset, it cannot be broadcast to an
-                # unspecified variable in 'values' and vice-versa, because a
-                # concept of a "default" does not exist.
-                if name not in weights:  # pragma: no cover
-                    raise ERROR_UNREACHABLE
-                # ---
+                # safety: checked in _check_aggregate_inputs()
+                assert name in weights
                 w = weights[name]
 
             w_results[name] = _reduce_sum(da, w, reduce_dims)
 
         return xr.Dataset(w_results)
 
-    # safety: only remaining options due to checks in _check_aggregate_inputs
+    # safety: checked in _check_aggregate_inputs()
     assert not is_dataset(values)
     assert not is_dataset(weights)
 
@@ -293,7 +293,7 @@ def _check_aggregate_inputs(
         weights: The weights to apply for weighted averaging in :py:func:`aggregate`.
         method: The aggregation method to use, either "mean" or "sum" in :py:func:`aggregate`.
     """
-    # safety: should have returned before reaching this point.
+    # safety: checked in aggregate()
     if reduce_dims is None:  # pragma: no cover
         raise ERROR_UNREACHABLE
 
