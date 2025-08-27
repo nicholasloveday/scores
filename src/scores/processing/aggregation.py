@@ -146,7 +146,7 @@ def aggregate(
             if weights is not None:
                 return _weighted_sum(values, weights, reduce_dims)
             return values.sum(reduce_dims)
-        case _:
+        case _:  # pragma: no cover
             # already checked in _check_aggregate_inputs
             raise ERROR_UNREACHABLE
 
@@ -238,7 +238,7 @@ def _weighted_sum(
                 # if 'weights' is a dataset, it cannot be broadcast to an
                 # unspecified variable in 'values' and vice-versa, because a
                 # concept of a "default" does not exist.
-                if name not in weights:
+                if name not in weights:  # pragma: no cover
                     raise ERROR_UNREACHABLE
                 # ---
                 w = weights[name]
@@ -247,9 +247,11 @@ def _weighted_sum(
 
         return xr.Dataset(w_results)
 
-    # safety: these are the only viable options
-    assert isinstance(values, xr.DataArray)
-    assert not isinstance(weights, xr.Dataset)
+    # ---
+    # safety: this is the only viable option
+    not_dataset = lambda maybe_ds: not isinstance(maybe_ds, xr.Dataset)
+    assert not_dataset(values) and not_dataset(weights)
+    # ---
 
     return _reduce_sum(values, weights, reduce_dims)
 
@@ -277,31 +279,34 @@ def _check_aggregate_inputs(
         weights: The weights to apply for weighted averaging in :py:func:`aggregate`.
         method: The aggregation method to use, either "mean" or "sum" in :py:func:`aggregate`.
     """
-    is_dataset = lambda maybe_ds: isinstance(maybe_ds, xr.Dataset)
+    # safety: should have returned before reaching this point.
+    if reduce_dims is None:  # pragma: no cover
+        raise ERROR_UNREACHABLE
 
     raise_if_invalid_aggregation_method(method)
 
     if weights is not None:
         check_weights(weights)
 
-        if reduce_dims is not None:
-            # ---
-            # weights cannot have more structural information than values
-            # i.e.
-            # weights = dataarray, values = dataset - OK
-            # weights = dataset, values = dataarray or numpy array - NOT OK
-            # if they are the same type - OK
-            if is_dataset(weights) and not is_dataset(values):
-                raise ERROR_WEIGHT_TYPE_MISMATCH
-            # ---
+        is_dataset = lambda maybe_ds: isinstance(maybe_ds, xr.Dataset)
 
-            # ---
-            # if both `values` and `weights` are datasets,
-            # check that all variables in `values` are present in `weights`,
-            # otherwise `weights` is underspecified, and therefore the weighted
-            # aggregation is ambiguous.
-            if is_dataset(weights) and is_dataset(values):
-                for name in values.data_vars:
-                    if name not in weights:
-                        raise ERROR_UNSPECIFIED_WEIGHTS_FOR_VARIABLE(name)
-            # ---
+        # ---
+        # weights cannot have more structural information than values
+        # i.e.
+        # weights = dataarray, values = dataset - OK
+        # weights = dataset, values = dataarray or numpy array - NOT OK
+        # if they are the same type - OK
+        if is_dataset(weights) and not is_dataset(values):
+            raise ERROR_WEIGHT_TYPE_MISMATCH
+        # ---
+
+        # ---
+        # if both `values` and `weights` are datasets,
+        # check that all variables in `values` are present in `weights`,
+        # otherwise `weights` is underspecified, and therefore the weighted
+        # aggregation is ambiguous.
+        if is_dataset(weights) and is_dataset(values):
+            for name in values.data_vars:
+                if name not in weights:
+                    raise ERROR_UNSPECIFIED_WEIGHTS_FOR_VARIABLE(name)
+        # ---
