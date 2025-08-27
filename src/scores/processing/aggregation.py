@@ -22,40 +22,40 @@ def _aggregate_error_builder(name, error_type=Exception):
     return type(name, (error_type,), {})
 
 
-AggregateError_InputKey = _aggregate_error_builder("InputKeyError", KeyError)
+AggregateErrorInputKey = _aggregate_error_builder("InputKeyError", KeyError)
 
-AggregateError_InputValue = _aggregate_error_builder("InputValueError", ValueError)
+AggregateErrorInputValue = _aggregate_error_builder("InputValueError", ValueError)
 
-AggregateError_InputType = _aggregate_error_builder("InputTypeError", TypeError)
+AggregateErrorInputType = _aggregate_error_builder("InputTypeError", TypeError)
 
-AggregateError_Compute = _aggregate_error_builder("ComputeError", ValueError)
+AggregateErrorCompute = _aggregate_error_builder("ComputeError", ValueError)
 
-AggregateError_Critical = _aggregate_error_builder("CriticalError", RuntimeError)
+AggregateErrorCritical = _aggregate_error_builder("CriticalError", RuntimeError)
 
 
 # black is not setup to format long strings properly
 # fmt: off
 
 # usage: raise ERROR_UNREACHABLE
-ERROR_UNREACHABLE = AggregateError_Critical(
+ERROR_UNREACHABLE = AggregateErrorCritical(
     "CRITICAL FAILURE! Unreachable code, please raise a github ticket quoting "
     "any traceback logs."
 )
 
 # usage: raise ERROR_INVALID_METHOD("agg")
-ERROR_INVALID_METHOD = lambda method: AggregateError_InputValue(
+ERROR_INVALID_METHOD = lambda method: AggregateErrorInputValue(
     "Method must be one of {}, got '{}'".format(SUPPORTED_METHODS_STR, method)
-)
+) # pylint: disable=unnecessary-lambda-assignment, disable=consider-using-f-string
 
 # usage: raise ERROR_WEIGHT_TYPE_MISMATCH
-ERROR_WEIGHT_TYPE_MISMATCH = AggregateError_InputType(
+ERROR_WEIGHT_TYPE_MISMATCH = AggregateErrorInputType(
     "`weights` cannot be an xr.Dataset when `values` is an xr.DataArray"
 )
 
 # usage: raise ERROR_UNSPECIFIED_WEIGHTS_FOR_VARIABLE("var")
-ERROR_UNSPECIFIED_WEIGHTS_FOR_VARIABLE = lambda var_name: AggregateError_InputKey(
+ERROR_UNSPECIFIED_WEIGHTS_FOR_VARIABLE = lambda var_name: AggregateErrorInputKey(
     "No weights provided for variable '{}'".format(var_name)
-)
+) # pylint: disable=unnecessary-lambda-assignment, disable=consider-using-f-string
 
 # usage: warnings.warn(WARN_WEIGHTS_IGNORED_STR)
 WARN_WEIGHTS_IGNORED_STR = (
@@ -152,6 +152,9 @@ def aggregate(
 
 
 def raise_if_invalid_aggregation_method(method: str):
+    """
+    Raises ValueError if method is not in SUPPORTED_METHODS_STR
+    """
     if (not isinstance(method, str)) or (method not in SUPPORTED_METHODS_STR):
         raise ERROR_INVALID_METHOD(method)
 
@@ -166,11 +169,13 @@ def _weighted_mean(
 
     xarray doesn't allow ``.weighted`` to take ``xr.Dataset`` as weights, so we need to do it ourselves
     """
-    # safety
+    # safety: checked in aggregate()
     assert reduce_dims is not None
     assert weights is not None
 
-    if isinstance(weights, xr.Dataset):
+    is_dataset = lambda maybe_ds: isinstance(maybe_ds, xr.Dataset)  # pylint: disable=C3001
+
+    if is_dataset(values) and is_dataset(weights):
         w_results = {}
         for name, da in values.data_vars.items():
             w = weights[name]
@@ -185,6 +190,10 @@ def _weighted_mean(
             w_results[name] = w_numerator / w_denominator
 
         return xr.Dataset(w_results)
+
+    # safety: weights should not be a dataset due to checks in _check_aggregate_inputs.
+    # note: values can still be a dataset.
+    assert not is_dataset(weights)
 
     values = values.weighted(weights)
 
@@ -206,9 +215,11 @@ def _weighted_sum(
     """
     # safety: checked in aggregate()
     assert reduce_dims is not None
+    assert weights is not None
+
+    is_dataset = lambda maybe_ds: isinstance(maybe_ds, xr.Dataset)  # pylint: disable=C3001
 
     def _align_and_fillzero(_v, _w, _dims):
-        fn_nan = xr.ufuncs.isnan
         v_aligned, w_aligned = broadcast_and_match_nan(_v, _w)
 
         # zero out masked values since they don't need to be summed
@@ -225,14 +236,17 @@ def _weighted_sum(
         result = xr.dot(_v, _w, dim=_dims)
         return result.where(~nan_mask, np.nan)
 
-    if isinstance(values, xr.Dataset):
+    # handles:
+    # - weights = dataset and values = dataset
+    # - weights = dataarray (or similar) and values = dataset
+    if is_dataset(values):
         w_results = {}
         w = weights  # assume weights are arrays/dataarrays
 
         for name, da in values.data_vars.items():
             # if weights are actually datasets, attempt to extract the
             # appropriate variable
-            if isinstance(weights, xr.Dataset):
+            if is_dataset(weights):
                 # ---
                 # safety: this is already checked in _check_aggregate_inputs;
                 # if 'weights' is a dataset, it cannot be broadcast to an
@@ -247,12 +261,12 @@ def _weighted_sum(
 
         return xr.Dataset(w_results)
 
-    # ---
-    # safety: this is the only viable option
-    not_dataset = lambda maybe_ds: not isinstance(maybe_ds, xr.Dataset)
-    assert not_dataset(values) and not_dataset(weights)
-    # ---
+    # safety: only remaining options due to checks in _check_aggregate_inputs
+    assert not is_dataset(values)
+    assert not is_dataset(weights)
 
+    # handles:
+    # - weights = dataarray (or similar) and values = dataarray (or similar)
     return _reduce_sum(values, weights, reduce_dims)
 
 
@@ -288,7 +302,7 @@ def _check_aggregate_inputs(
     if weights is not None:
         check_weights(weights)
 
-        is_dataset = lambda maybe_ds: isinstance(maybe_ds, xr.Dataset)
+        is_dataset = lambda maybe_ds: isinstance(maybe_ds, xr.Dataset)  # pylint: disable=C3001
 
         # ---
         # weights cannot have more structural information than values
