@@ -12,7 +12,6 @@ from scores.processing.matching import broadcast_and_match_nan
 from scores.typing import FlexibleDimensionTypes, XarrayLike
 from scores.utils import check_weights
 
-
 SUPPORTED_METHODS_STR = ["mean", "sum"]
 
 
@@ -256,7 +255,10 @@ def _weighted_sum(
 
 
 def _check_aggregate_inputs(
-    values: XarrayLike, reduce_dims: FlexibleDimensionTypes | None, weights: XarrayLike | None, method: str,
+    values: XarrayLike,
+    reduce_dims: FlexibleDimensionTypes | None,
+    weights: XarrayLike | None,
+    method: str,
 ):
     """
     This function checks the inputs to the aggregate function.
