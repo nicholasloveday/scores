@@ -19,6 +19,10 @@ import pytest
 import xarray as xr
 
 import scores.continuous
+from scores.continuous.standard_impl import (
+    aggregate_squared_error,
+    population_weighted_squared_error,
+)
 
 PRECISION = 4
 
@@ -1136,3 +1140,100 @@ def test_kge_errors(fcst, obs, scaling_factors, expected_exception, expected_mes
     """
     with pytest.raises(expected_exception, match=expected_message):
         scores.continuous.kge(fcst, obs, scaling_factors=scaling_factors)  # type: ignore
+
+
+def test_population_weighted_squared_error():
+    """
+    Test population_weighted_squared_error:
+        - population >1e5: should split division in stages
+        - population <=1e5: should divide in one go
+    """
+    # ----------------------------
+    # Scenario 1: Large population
+    # ----------------------------
+    # slightly above threshold, so that we don't make things too large
+    size_large_population = int(1e5 + 5e4)
+    expected_pre_division = 1e5  # unused - for reference only
+    expected_post_divsion = 1.5  # unused - for reference only
+
+    # keep preserved dimensions small so verification is easy to construct
+    size_preserved_dimensions = (3, 2)
+
+    size_tuple = (size_large_population, *size_preserved_dimensions)
+    dim_names = ("x", "y", "z")
+    reduce_dims = ["x"]
+
+    # use float32 to reduce computational load
+    fcst = xr.DataArray(data=np.zeros(size_tuple), dims=dim_names)
+    obs = xr.DataArray(data=np.ones(size_tuple), dims=dim_names)
+    weights = xr.DataArray(data=2 * np.ones(size_tuple), dims=dim_names)
+    expected = xr.DataArray(data=2 * np.ones(size_preserved_dimensions), dims=("y", "z"))
+    result = population_weighted_squared_error(fcst, obs, weights=weights, reduce_dims=reduce_dims)
+
+    xr.testing.assert_allclose(result, expected)
+
+    # -----------------------------------------
+    # Scenario 2: Small (<threshold) population
+    # -----------------------------------------
+    size_tuple = (10, 3, 2)
+    dim_names = ("x", "y", "z")
+    reduce_dims = ["x"]
+    fcst = xr.DataArray(data=np.zeros(size_tuple), dims=dim_names)
+    obs = xr.DataArray(data=np.ones(size_tuple), dims=dim_names)
+    weights = xr.DataArray(data=2 * np.ones(size_tuple), dims=dim_names)
+    expected = xr.DataArray(
+        data=2
+        * np.ones(
+            size_preserved_dimensions,
+        ),
+        dims=("y", "z"),
+    )
+    result = population_weighted_squared_error(fcst, obs, weights=weights, reduce_dims=reduce_dims)
+
+    xr.testing.assert_allclose(result, expected)
+
+    # --------------------------------------------------
+    # Scenario 3: Non-xarray: raises NotImplementedError
+    # --------------------------------------------------
+    expected_pre_division = 1e5  # unused - for reference only
+    expected_post_divsion = 9  # unused - for reference only
+    size_tuple = (size_large_population, *size_preserved_dimensions)
+    fcst = np.zeros(size_tuple)
+    obs = np.ones(size_tuple)
+    weights = 2 * np.ones(size_tuple)
+
+    with pytest.raises(NotImplementedError):
+        result = population_weighted_squared_error(fcst, obs, weights=weights)
+
+
+def test_aggregate_squared_error_numpy():
+    """
+    NOTE: most of this is tested by `mse` or `population_weighted_squared_error`
+
+    This test focuses on numpy-like objects without labelled dimensions.
+
+    Since scores currently doesn't support reduction of non-labelled
+    dimensions, they will be completely reduced, regardless of weights
+    """
+    fcst = 2 * np.ones((2, 2))
+    obs = np.zeros((2, 2))
+
+    # ---------------------------------
+    # Scenario 1: Sum of squared errors
+    # ---------------------------------
+    result = aggregate_squared_error(fcst, obs, aggregate_method="sum")
+    expected = 16
+    assert result - expected < 1e-6
+
+    # ----------------------------------
+    # Scenario 2: Mean of squared errors
+    # ----------------------------------
+    result = aggregate_squared_error(fcst, obs, aggregate_method="mean")
+    expected = 4
+    assert result - expected < 1e-6
+
+    # ------------------------------
+    # Scenario 3: Unsupported method
+    # ------------------------------
+    with pytest.raises(ValueError):
+        result = aggregate_squared_error(fcst, obs, aggregate_method="agg")

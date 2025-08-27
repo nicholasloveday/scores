@@ -67,8 +67,8 @@ def aggregate_squared_error(
                 result = squared.sum()
             case "mean":
                 result = squared.mean()
-            case _:
-                # already checked at the top of the function
+            case _:  # pragma: no cover
+                # safety: already checked at the top of the function
                 raise RuntimeError("unreachable")
 
     return result
@@ -174,30 +174,30 @@ def population_weighted_squared_error(
             is_angular=is_angular,
         )
 
+    if not is_xarraylike(fcst) or not is_xarraylike(obs):
+        raise NotImplementedError(
+            "`population_weighted_squared_error` only supports weighting with xarray-like inputs."
+        )
+
     def _population_count_of_reduced_dims():
-        if is_xarraylike(fcst) and is_xarraylike(obs):
-            _reduce_dims = scores.utils.gather_dimensions(
-                fcst.dims,
-                obs.dims,
-                reduce_dims=reduce_dims,
-                preserve_dims=preserve_dims,
+        _reduce_dims = scores.utils.gather_dimensions(
+            fcst.dims,
+            obs.dims,
+            reduce_dims=reduce_dims,
+            preserve_dims=preserve_dims,
+        )
+
+        # attempt to get dimension length from forecast, else observation,
+        # else default to 1 (identity for product-type)
+        dim_lengths = [
+            fcst.sizes.get(
+                _dim,
+                obs.sizes.get(_dim, 1),
             )
+            for _dim in _reduce_dims
+        ]
 
-            # attempt to get dimension length from forecast, else observation,
-            # else default to 1 (identity for product-type)
-            dim_lengths = [
-                fcst.sizes.get(
-                    _dim,
-                    obs.sizes.get(_dim, 1),
-                )
-                for _dim in _reduce_dims
-            ]
-
-            return np.prod(dim_lengths)
-
-        else:
-            # no reduction will be applied for non-xarraylike
-            return 1
+        return np.prod(dim_lengths)
 
     population_count = _population_count_of_reduced_dims()
     remaining_divisor = 1
