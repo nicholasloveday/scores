@@ -8,7 +8,6 @@ import xarray as xr
 
 from scores.spatial.fss_impl import (
     FlexibleDimensionTypes,
-    FssComputeMethod,
     _make_numpy_threshold_operator,
     fss_2d_binary,
 )
@@ -27,8 +26,6 @@ def pfss_for_ensemble(  # pylint: disable=too-many-locals,too-many-arguments
     reduce_dims: Optional[FlexibleDimensionTypes] = None,
     preserve_dims: Optional[FlexibleDimensionTypes] = None,
     threshold_operator: Optional[Callable] = None,
-    compute_method: FssComputeMethod = FssComputeMethod.NUMPY,
-    dask: str = "forbidden",  # see: `xarray.apply_ufunc` for options
 ) -> xr.DataArray:
     """
     Calculates the probabilistic Fractions Skill Score (pFSS) for an ensemble forecast.
@@ -91,9 +88,6 @@ def pfss_for_ensemble(  # pylint: disable=too-many-locals,too-many-arguments
             event field. E.g. ``np.greater``. Note: this may depend on the backend
             ``compute method`` and not all operators may be supported. Generally,
             ``np.greater``, ``np.less`` and their counterparts. Defaults to "np.greater".
-        compute_method: currently only supports :py:obj:`FssComputeMethod.NUMPY`
-            see: :py:class:`scores.fast.fss.typing.FssComputeMethod`
-        dask: See ``xarray.apply_ufunc`` for options
 
     Returns:
         An ``xarray.DataArray`` containing the pFSS computed over the ``spatial_dims``.
@@ -102,7 +96,7 @@ def pfss_for_ensemble(  # pylint: disable=too-many-locals,too-many-arguments
         ``reduce_dims`` / ``preserve_dims``. ``ensemble_member_dim`` is never present in the output.
         If neither is specified, all dimensions are reduced and a single value is returned.
         The score takes values between 0 and 1, where 1 is a perfect score. If no events are forecast
-        or observed in the data being aggregated, the score is np.nan.
+        or observed in the data being aggregated, the score is NaN.
 
     Raises:
         AlignmentError: If ``fcst`` and ``obs`` do not have matching coordinates on the dimensions
@@ -127,7 +121,7 @@ def pfss_for_ensemble(  # pylint: disable=too-many-locals,too-many-arguments
     References:
         1. Necker, T., Wolfgruber, L., Kugler, L., Weissmann, M., Dorninger, M., & Serafin, S. (2024).
            The fractions skill score for ensemble forecast verification. Quarterly Journal of the
-           Royal Meteorological Society, 150(764), 4457–4477. Portico. https://doi.org/10.1002/qj.4824.
+           Royal Meteorological Society, 150(764), 4457–4477. https://doi.org/10.1002/qj.4824.
         2. Schwartz, C. S., Kain, J. S., Weiss, S. J., Xue, M., Bright, D. R., Kong, F.,
            Thomas, K. W., Levit, J. J., Coniglio, M. C., & Wandishin, M. S. (2010). Toward Improved
            Convection-Allowing Ensembles: Model Physics Sensitivities and Optimizing Probabilistic

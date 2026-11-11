@@ -1,5 +1,8 @@
 """
 Tests for the probabilistic Fractions Skill Score (pFSS) implementation.
+
+Note that the underlying FSS code that pFSS calls is thoroughly tested in
+tests/spatial/test_fss.py.
 """
 
 import numpy as np
@@ -218,7 +221,7 @@ def test_multiple_ens_members(window_size, expected):
         (FCST * 0, OBS * 0, xr.DataArray(np.nan)),
         # Forecast with no skill
         (FCST, OBS * 0, xr.DataArray(0)),
-        # Forecast with no skill
+        # Forecast with no skill (fcsts are non events everywhere)
         (FCST * 0, OBS, xr.DataArray(0)),
     ],
 )
@@ -284,10 +287,10 @@ def test_identical_mems_equal_one_mem():
         # Test with a single NaN in the extra dimension, preserve the time dimension
         (FCST_EXTRA_DIM_NAN, OBS_EXTRA_DIM, ("time",), EXP_EXTRA_DIM_NAN),
         # Test with a single NaN in the extra dimension, don't preserve the time dimension
-        (FCST_EXTRA_DIM_NAN, OBS_EXTRA_DIM, None, EXP2),
+        (FCST_EXTRA_DIM_NAN, OBS_EXTRA_DIM_NAN, None, EXP2),
     ],
 )
-def test_pffs_nan_handling(fcst, obs, preserve_dims, expected):
+def test_pfss_nan_handling(fcst, obs, preserve_dims, expected):
     """
     Test that the pFSS correctly handles NaN values in the forecast and observation data.
 
@@ -323,7 +326,7 @@ def test_broadcasting():
         window_size=(2, 2),
         ensemble_member_dim="ens_mem",
         spatial_dims=("x", "y"),
-        preserve_dims=("time"),
+        preserve_dims="time",
     )
     xr.testing.assert_allclose(result, xr.DataArray(EXP2).expand_dims(time=[1, 2]))
 
