@@ -392,11 +392,3 @@ def test_pfss_raises(obs, reduce_dims, preserve_dims, threshold_operator, ensemb
             preserve_dims=preserve_dims,
             threshold_operator=threshold_operator,
         )
-
-
-# Test Dimension warning
-def test_pfss_warns():
-    """
-    Test that the pFSS raises appropriate warnings.
-    """
-    pass
