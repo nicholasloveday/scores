@@ -139,7 +139,7 @@ def test_pfss_equals_fss_for_single_member(
 # 2 members, 2x2 window
 def test_multiple_ens_members():
     """
-    Test that the pFSS for multiple ensemble members returns a valid score.
+    Test that the pFSS for multiple ensemble members returns the correct score
     """
     pass
 
@@ -148,7 +148,28 @@ def test_identical_mems_equal_one_mem():
     """
     Test that identical ensemble members produce the same pFSS as a single-member ensemble.
     """
-    pass
+    fcst = sd.continuous_forecast(large_size=False, lead_days=True)
+    obs = sd.continuous_observations(large_size=False)
+    fcst_ens1 = fcst.expand_dims(ens_mem=[1])
+    fcst_ens2 = fcst.expand_dims(ens_mem=[1, 2])
+
+    pfss_score1 = pfss_for_ensemble(
+        fcst_ens1,
+        obs,
+        event_threshold=0.5,
+        window_size=(2, 2),
+        ensemble_member_dim="ens_mem",
+        spatial_dims=("lat", "lon"),
+    )
+    pfss_score2 = pfss_for_ensemble(
+        fcst_ens2,
+        obs,
+        event_threshold=0.5,
+        window_size=(2, 2),
+        ensemble_member_dim="ens_mem",
+        spatial_dims=("lat", "lon"),
+    )
+    xr.testing.assert_equal(pfss_score1, pfss_score2)
 
 
 # Test all with something like `preserve_dims="time"` and `reduce_dims="time"`
