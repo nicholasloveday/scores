@@ -31,11 +31,14 @@ OBS = xr.DataArray(
 )
 FCST_SINGLE_NAN = FCST.astype(float).copy()
 FCST_SINGLE_NAN.loc[{"ens_mem": 2, "x": 1, "y": 1}] = np.nan
+
 FCST_MEM_1_NAN = FCST.astype(float).copy()
 FCST_MEM_1_NAN.loc[{"ens_mem": 1}] = np.nan
 
 FCST_POINT_ALL_NAN = FCST.astype(float).copy()
 FCST_POINT_ALL_NAN.loc[{"x": 1, "y": 1}] = np.nan
+
+FCST_PERFECT = OBS.expand_dims(ens_mem=[1, 2, 3, 4])
 
 OBS_SINGLE_NAN = OBS.astype(float).copy()
 OBS_SINGLE_NAN.loc[{"x": 1, "y": 1}] = np.nan
@@ -193,6 +196,28 @@ def test_multiple_ens_members(window_size, expected):
         spatial_dims=("x", "y"),
     )
     xr.testing.assert_allclose(pfss_score, expected)
+
+
+@pytest.mark.parametrize(
+    ("fcst", "obs", "exp"),
+    [
+        (FCST_PERFECT, OBS, xr.DataArray(1)),
+        (FCST * 0, OBS * 0, xr.DataArray(np.nan)),
+    ],
+)
+def test_perfect(fcst, obs, exp):
+    """
+    Test that a perfect forecast (identical to the observation) returns a pFSS of 1.
+    """
+    pfss_score = pfss_for_ensemble(
+        fcst,
+        obs,
+        event_threshold=2,
+        window_size=(2, 2),
+        ensemble_member_dim="ens_mem",
+        spatial_dims=("x", "y"),
+    )
+    xr.testing.assert_equal(pfss_score, exp)
 
 
 def test_identical_mems_equal_one_mem():

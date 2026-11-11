@@ -191,5 +191,10 @@ def pfss_for_ensemble(  # pylint: disable=too-many-locals,too-many-arguments
         dask=dask,
     )
     # Mask results where data was missing.
+    # Also, where there are no events in either forecast or observation, mask the result
+    # since the fraction in pFSS would be undefined.
     pfss = pfss.where(valid.any(dim=[d for d in valid.dims if d not in pfss.dims]))
+    reduced = [d for d in valid.dims if d not in pfss.dims]
+    any_event = ((fcst_prob > 0) | (obs_events > 0)).any(dim=reduced)
+    pfss = pfss.where(any_event)
     return pfss
