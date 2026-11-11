@@ -40,6 +40,8 @@ FCST_POINT_ALL_NAN.loc[{"x": 1, "y": 1}] = np.nan
 
 FCST_PERFECT = OBS.expand_dims(ens_mem=[1, 2, 3, 4])
 
+FCST_EXTRA_DIM = FCST.expand_dims(time=[1, 2])
+
 OBS_SINGLE_NAN = OBS.astype(float).copy()
 OBS_SINGLE_NAN.loc[{"x": 1, "y": 1}] = np.nan
 
@@ -288,6 +290,21 @@ def test_pffs_nan_handling(fcst, obs, expected):
         spatial_dims=("x", "y"),
     )
     xr.testing.assert_allclose(result, expected)
+
+def test_broadcasting():
+    """
+    Test that the pFSS correctly handles broadcasting of arrays.
+    """
+    result = pfss_for_ensemble(
+        FCST_EXTRA_DIM,
+        OBS,
+        event_threshold=2,
+        window_size=(2, 2),
+        ensemble_member_dim="ens_mem",
+        spatial_dims=("x", "y"),
+        preserve_dims=("time")
+    )
+    xr.testing.assert_allclose(result, xr.DataArray(EXP2).expand_dims(time=[1, 2]))
 
 
 # Test ens mem dim not in fcst
