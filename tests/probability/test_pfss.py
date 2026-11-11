@@ -44,7 +44,7 @@ OBS_SINGLE_NAN = OBS.astype(float).copy()
 OBS_SINGLE_NAN.loc[{"x": 1, "y": 1}] = np.nan
 
 
-@pytest.mark.filterwarnings("ignore::UserWarning")
+@pytest.mark.filterwarnings("ignore::scores.utils.DimensionWarning")
 @pytest.mark.parametrize(
     (
         "window_size",
@@ -137,7 +137,7 @@ def test_pfss_equals_fss_for_single_member(
     """
     Test that the pFSS for a single-member ensemble equals the standard FSS.
 
-    These tests inputs were taken from scores.testing.spatial.test_fss_2d_binary with two more
+    These tests inputs were taken from tests/spatial/test_fss.py::test_fss_2d_binary with two more
     tests added at the end to test the zero padding arg and the threshold operator arg.
     """
     fcst = sd.continuous_forecast(large_size=False, lead_days=True)
@@ -254,11 +254,11 @@ def test_identical_mems_equal_one_mem():
         # Test with a single NaN in the forecast
         # Note that naively using the method to calc `EXP2` above would fail.
         (FCST_SINGLE_NAN, OBS, xr.DataArray(0.71387527)),
-        # # Test with a single Obs NaN in the observation
+        # Test with a single Obs NaN in the observation
         (FCST, OBS_SINGLE_NAN, xr.DataArray(0.68997669)),
-        # # Test with all NaNs in the forecast
+        # Test with all NaNs in the forecast
         (FCST * np.nan, OBS, xr.DataArray(np.nan)),
-        # # Test with all NaNs in the observation
+        # Test with all NaNs in the observation
         (FCST, OBS * np.nan, xr.DataArray(np.nan)),
         # Test with all NaNs in one ensemble member
         (FCST_MEM_1_NAN, OBS, xr.DataArray(0.44875346)),
@@ -270,7 +270,7 @@ def test_pffs_nan_handling(fcst, obs, expected):
     """
     Test that the pFSS correctly handles NaN values in the forecast and observation data.
 
-    The expected results were calculated independently as follows:
+    The expected results were calculated as follows:
 
         prob = (fcst > 2).where(fcst.notnull()).mean("ens_mem")
         obs_ev = (obs > 2).where(obs.notnull())
