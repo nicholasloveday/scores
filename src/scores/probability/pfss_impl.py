@@ -122,11 +122,6 @@ def pfss_for_ensemble(  # pylint: disable=too-many-locals,too-many-arguments
         1. Necker, T., Wolfgruber, L., Kugler, L., Weissmann, M., Dorninger, M., & Serafin, S. (2024).
            The fractions skill score for ensemble forecast verification. Quarterly Journal of the
            Royal Meteorological Society, 150(764), 4457–4477. https://doi.org/10.1002/qj.4824.
-        2. Schwartz, C. S., Kain, J. S., Weiss, S. J., Xue, M., Bright, D. R., Kong, F.,
-           Thomas, K. W., Levit, J. J., Coniglio, M. C., & Wandishin, M. S. (2010). Toward Improved
-           Convection-Allowing Ensembles: Model Physics Sensitivities and Optimizing Probabilistic
-           Guidance with Small Ensemble Membership. Weather and Forecasting, 25(1), 263–280.
-           https://doi.org/10.1175/2009waf2222267.1
 
     Examples:
         >>> import xarray as xr
