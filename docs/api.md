@@ -66,6 +66,7 @@
 .. autoclass:: scores.probability.PitFcstAtObs
     :members:
 .. autofunction:: scores.probability.rank_histogram
+.. autofunction:: scores.probability.pfss_for_ensemble
 .. autofunction:: scores.probability.relative_economic_value
 .. autofunction:: scores.probability.relative_economic_value_from_rates
 ```
@@ -99,6 +100,7 @@
 .. autofunction:: scores.spatial.fss_2d
 .. autofunction:: scores.spatial.fss_2d_binary
 .. autofunction:: scores.spatial.fss_2d_single_field
+.. autofunction:: scores.spatial.pfss_for_ensemble
 ```
 
 ## scores.dynamics
