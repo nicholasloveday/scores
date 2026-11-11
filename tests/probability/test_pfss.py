@@ -212,13 +212,19 @@ def test_multiple_ens_members(window_size, expected):
 @pytest.mark.parametrize(
     ("fcst", "obs", "exp"),
     [
+        # Perfect skill
         (FCST_PERFECT, OBS, xr.DataArray(1)),
+        # Handles divide by zero case
         (FCST * 0, OBS * 0, xr.DataArray(np.nan)),
+        # Forecast with no skill
+        (FCST, OBS * 0, xr.DataArray(0)),
+        # Forecast with no skill
+        (FCST * 0, OBS, xr.DataArray(0)),
     ],
 )
-def test_perfect(fcst, obs, exp):
+def test_edge_cases(fcst, obs, exp):
     """
-    Test that a perfect forecast (identical to the observation) returns a pFSS of 1.
+    Test some edge cases for the pFSS score.
     """
     pfss_score = pfss_for_ensemble(
         fcst,
@@ -229,28 +235,6 @@ def test_perfect(fcst, obs, exp):
         spatial_dims=("x", "y"),
     )
     xr.testing.assert_equal(pfss_score, exp)
-
-
-@pytest.mark.parametrize(
-    ("fcst", "obs"),
-    [
-        (FCST, OBS * 0),
-        (FCST * 0, OBS),
-    ],
-)
-def test_no_skill(fcst, obs):
-    """
-    Test that a forecast with no skill returns a score of zero.
-    """
-    pfss_score = pfss_for_ensemble(
-        fcst,
-        obs,
-        event_threshold=2,
-        window_size=(2, 2),
-        ensemble_member_dim="ens_mem",
-        spatial_dims=("x", "y"),
-    )
-    xr.testing.assert_equal(pfss_score, xr.DataArray(0))
 
 
 def test_identical_mems_equal_one_mem():
@@ -298,7 +282,7 @@ def test_identical_mems_equal_one_mem():
         # Test with all NaNs at a single point
         (FCST_POINT_ALL_NAN, OBS, None, xr.DataArray(0.68997669)),
         # Test with a single NaN in the extra dimension, preserve the time dimension
-        (FCST_EXTRA_DIM_NAN, OBS_EXTRA_DIM, "time", EXP_EXTRA_DIM_NAN),
+        (FCST_EXTRA_DIM_NAN, OBS_EXTRA_DIM, ("time",), EXP_EXTRA_DIM_NAN),
         # Test with a single NaN in the extra dimension, don't preserve the time dimension
         (FCST_EXTRA_DIM_NAN, OBS_EXTRA_DIM, None, EXP2),
     ],
@@ -365,14 +349,14 @@ def test_transposed_arrays():
 # Test ens mem dim in reduce dims
 # Test ens mem dim in preserve dims
 # Test threshold_operator not supported
-def test_pffs_raises():
+def test_pfss_raises():
     """
     Test that the pFSS raises appropriate errors for invalid inputs.
     """
 
 
 # Test Dimension warning
-def test_pffs_warns():
+def test_pfss_warns():
     """
     Test that the pFSS raises appropriate warnings.
     """
