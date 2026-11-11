@@ -306,6 +306,20 @@ def test_broadcasting():
     )
     xr.testing.assert_allclose(result, xr.DataArray(EXP2).expand_dims(time=[1, 2]))
 
+def test_transposed_arrays():
+    """
+    Test that the pFSS correctly handles transposed arrays (e.g., dim order changes).
+    """
+    fcst = FCST.T
+    result = pfss_for_ensemble(
+        fcst,
+        OBS,
+        event_threshold=2,
+        window_size=(2, 2),
+        ensemble_member_dim="ens_mem",
+        spatial_dims=("x", "y"),
+    )
+    xr.testing.assert_allclose(result, xr.DataArray(EXP2))
 
 # Test ens mem dim not in fcst
 # Test ens mem dim in obs
