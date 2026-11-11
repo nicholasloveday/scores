@@ -457,5 +457,3 @@ def _aggregate_fss_decomposed(fss_d: FssDecomposed) -> np.float64:
     else:
         fss_clamped = np.float64(np.nan)
     return fss_clamped
-
-
