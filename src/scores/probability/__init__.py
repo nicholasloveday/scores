@@ -24,6 +24,8 @@ from scores.probability.pit_impl import Pit, PitFcstAtObs
 from scores.probability.rank_hist_impl import rank_histogram
 from scores.processing.isoreg_impl import isotonic_fit
 
+from scores.probability.pfss_impl import pfss_for_ensemble
+
 __all__ = [
     "murphy_score",
     "murphy_thetas",
@@ -45,4 +47,5 @@ __all__ = [
     "Pit",
     "PitFcstAtObs",
     "rank_histogram",
+    "pfss_for_ensemble",
 ]
