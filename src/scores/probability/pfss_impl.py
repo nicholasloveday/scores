@@ -106,13 +106,18 @@ def pfss_for_ensemble(  # pylint: disable=too-many-locals,too-many-arguments
         :py:func:`scores.spatial.fss_2d`.
 
     Raises:
+        AlignmentError: If ``fcst`` and ``obs`` do not have matching coordinates on the dimensions
+            they share, e.g. if their spatial extents differ. This is raised by ``xarray``.
+
+        DimensionError: If the window size is larger than the input arrays or is not a pair of
+            positive integers, or if ``spatial_dims`` are not a pair of dimensions present in both
+            ``fcst`` and ``obs``.
+
         ValueError: If ``ensemble_member_dim`` is not in ``fcst.dims``, if it is in ``obs.dims``, ``reduce_dims``
             or ``preserve_dims``, or if ``threshold_operator`` is not a supported operator.
 
-        DimensionError: Various errors are thrown if the input dimensions
-            do not conform. e.g. if the window size is larger than the input
-            arrays, or if the the spatial dimensions in the args are missing in
-            the input arrays.
+        AlignmentError: If ``fcst`` and ``obs`` do not have matching coordinates on the dimensions
+            they share, e.g. if their spatial extents differ. This is raised by ``xarray``.
 
         DimensionWarning: If ``spatial_dims`` are attempting to be preserved e.g. in ``preserve_dims``
 
@@ -132,7 +137,7 @@ def pfss_for_ensemble(  # pylint: disable=too-many-locals,too-many-arguments
 
     Examples:
         >>> import xarray as xr
-        >>> from scores.spatial import pfss_for_ensemble
+        >>> from scores.probability import pfss_for_ensemble
 
         >>> # Create a simple 2-member ensemble forecast and observations on a 3x3 grid
         >>> fcst = xr.DataArray(
