@@ -3,15 +3,16 @@ Implementation of the probabilistic Fractions Skill Score (pFSS) for ensemble fo
 """
 
 from typing import Callable, Optional, Tuple
+
 import xarray as xr
 
-from scores.utils import gather_dimensions
 from scores.spatial.fss_impl import (
-    FssComputeMethod,
     FlexibleDimensionTypes,
+    FssComputeMethod,
     _make_numpy_threshold_operator,
     fss_2d_binary,
 )
+from scores.utils import gather_dimensions
 
 
 def pfss_for_ensemble(  # pylint: disable=too-many-locals,too-many-arguments

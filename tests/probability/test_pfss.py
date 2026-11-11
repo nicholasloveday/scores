@@ -3,14 +3,11 @@ Tests for the probabilistic Fractions Skill Score (pFSS) implementation.
 """
 
 import pytest
-from scores.probability import pfss_for_ensemble
-from scores.spatial import fss_2d_single_field
-
-from scores.spatial.fss_impl import fss_2d, fss_2d_binary
-from tests.spatial import fss_test_data as ftd
-from scores import sample_data as sd
-
 import xarray as xr
+
+from scores import sample_data as sd
+from scores.probability import pfss_for_ensemble
+from scores.spatial.fss_impl import fss_2d
 
 
 @pytest.mark.parametrize(
@@ -39,7 +36,7 @@ def test_pfss_equals_fss_for_single_member(window_size, event_threshold, reduce_
     """
     Test that the pFSS for a single-member ensemble equals the standard FSS.
 
-    These tests were taken from scores.testing.spatial.test_fss_2d_binary
+    These tests inputs were taken from scores.testing.spatial.test_fss_2d_binary
     """
     da_fcst = sd.continuous_forecast(large_size=False, lead_days=True)
     da_obs = sd.continuous_observations(large_size=False)

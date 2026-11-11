@@ -20,11 +20,10 @@ from scores.probability.crps_impl import (
     tail_tw_crps_for_ensemble,
     tw_crps_for_ensemble,
 )
+from scores.probability.pfss_impl import pfss_for_ensemble
 from scores.probability.pit_impl import Pit, PitFcstAtObs
 from scores.probability.rank_hist_impl import rank_histogram
 from scores.processing.isoreg_impl import isotonic_fit
-
-from scores.probability.pfss_impl import pfss_for_ensemble
 
 __all__ = [
     "murphy_score",
