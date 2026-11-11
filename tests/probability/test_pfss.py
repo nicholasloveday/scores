@@ -11,24 +11,24 @@ from scores.probability import pfss_for_ensemble
 from scores.spatial.fss_impl import fss_2d
 
 FCST = xr.DataArray(
-        [
-            # member 1
-            [[0, 3, 3, 0], [0, 3, 2, 0], [4, 0, 0, 0], [4, 4, 0, 0]],
-            # member 2
-            [[0, 3, 0, 0], [0, 2, 2, 0], [4, 0, 0, 3], [0, 4, 0, 0]],
-            # member 3
-            [[0, 0, 0, 0], [3, 0, 2, 0], [0, 0, 50, 3], [0, 3, 0, -9]],
-            # member 4
-            [[0, 0, 0, 100], [0, 0, 0, 0], [0, 0, 3, 3], [0, 0, 0, 3]],
-        ],
-        dims=["ens_mem", "x", "y"],
-        coords={"ens_mem": [1, 2, 3, 4], "x": [0, 1, 2, 3], "y": [0, 1, 2, 3]},
-    )
-OBS = xr.DataArray(
+    [
+        # member 1
         [[0, 3, 3, 0], [0, 3, 2, 0], [4, 0, 0, 0], [4, 4, 0, 0]],
-        dims=["x", "y"],
-        coords={"x": [0, 1, 2, 3], "y": [0, 1, 2, 3]},
-    )
+        # member 2
+        [[0, 3, 0, 0], [0, 2, 2, 0], [4, 0, 0, 3], [0, 4, 0, 0]],
+        # member 3
+        [[0, 0, 0, 0], [3, 0, 2, 0], [0, 0, 50, 3], [0, 3, 0, -9]],
+        # member 4
+        [[0, 0, 0, 100], [0, 0, 0, 0], [0, 0, 3, 3], [0, 0, 0, 3]],
+    ],
+    dims=["ens_mem", "x", "y"],
+    coords={"ens_mem": [1, 2, 3, 4], "x": [0, 1, 2, 3], "y": [0, 1, 2, 3]},
+)
+OBS = xr.DataArray(
+    [[0, 3, 3, 0], [0, 3, 2, 0], [4, 0, 0, 0], [4, 4, 0, 0]],
+    dims=["x", "y"],
+    coords={"x": [0, 1, 2, 3], "y": [0, 1, 2, 3]},
+)
 FCST_SINGLE_NAN = FCST.astype(float).copy()
 FCST_SINGLE_NAN.loc[{"ens_mem": 2, "x": 1, "y": 1}] = np.nan
 FCST_MEM_1_NAN = FCST.astype(float).copy()
@@ -168,16 +168,17 @@ def test_pfss_equals_fss_for_single_member(
     xr.testing.assert_equal(pfss_score, fss_score)
 
 
-
 # EXP1_NUM = (((fcst > 2).mean(dim="ens_mem") - (obs>2))**2).sum()
 # EXP1_DEN = ((fcst > 2).mean(dim="ens_mem")**2).sum() + ((obs>2)**2).sum()
 # EXP1 = 1 - EXP1_NUM / EXP1_DEN
-EXP1 = xr.DataArray(1 - 3.25/8.25)  # See my calculation above
+EXP1 = xr.DataArray(1 - 3.25 / 8.25)  # See my calculation above
 
 # fcst_frac = (fcst > 2).mean("ens_mem").rolling(x=2, y=2).mean()
 # obs_frac = (obs > 2).rolling(x=2, y=2).mean()
 # expected_frac = 1 - ((fcst_frac - obs_frac)**2).sum() / ((fcst_frac**2).sum() + (obs_frac**2).sum())
 EXP2 = xr.DataArray(0.69242658)  # See my calculation above
+
+
 @pytest.mark.parametrize(("window_size", "expected"), [((1, 1), EXP1), ((2, 2), EXP2)])
 def test_multiple_ens_members(window_size, expected):
     """
@@ -227,18 +228,18 @@ def test_identical_mems_equal_one_mem():
     [
         # Test with a single NaN in the forecast
         # Note that naively using the method to calc `EXP2` above would fail.
-        (FCST_SINGLE_NAN, OBS, xr.DataArray(0.71387527)),  
+        (FCST_SINGLE_NAN, OBS, xr.DataArray(0.71387527)),
         # # Test with a single Obs NaN in the observation
         (FCST, OBS_SINGLE_NAN, xr.DataArray(0.68997669)),
         # # Test with all NaNs in the forecast
-        (FCST*np.nan, OBS, xr.DataArray(np.nan)),
+        (FCST * np.nan, OBS, xr.DataArray(np.nan)),
         # # Test with all NaNs in the observation
-        (FCST, OBS*np.nan, xr.DataArray(np.nan)),
+        (FCST, OBS * np.nan, xr.DataArray(np.nan)),
         # Test with all NaNs in one ensemble member
         (FCST_MEM_1_NAN, OBS, xr.DataArray(0.44875346)),
         # Test with all NaNs at a single point
         (FCST_POINT_ALL_NAN, OBS, xr.DataArray(0.68997669)),
-    ]
+    ],
 )
 def test_pffs_nan_handling(fcst, obs, expected):
     """
@@ -281,4 +282,3 @@ def test_pffs_warns():
     Test that the pFSS raises appropriate warnings.
     """
     pass
-
