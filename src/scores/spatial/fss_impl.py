@@ -457,3 +457,70 @@ def _aggregate_fss_decomposed(fss_d: FssDecomposed) -> np.float64:
     else:
         fss_clamped = np.float64(np.nan)
     return fss_clamped
+
+
+def pfss_for_ensemble(  # pylint: disable=too-many-locals,too-many-arguments
+    fcst: xr.DataArray,
+    obs: xr.DataArray,
+    *,  # Force keywords arguments to be keyword-only
+    event_threshold: float,
+    window_size: Tuple[int, int],
+    spatial_dims: Tuple[str, str],
+    ensemble_member_dim: str,
+    zero_padding: bool = False,
+    reduce_dims: Optional[FlexibleDimensionTypes] = None,
+    preserve_dims: Optional[FlexibleDimensionTypes] = None,
+    threshold_operator: Optional[Callable] = None,
+    compute_method: FssComputeMethod = FssComputeMethod.NUMPY,
+    dask: str = "forbidden",  # see: `xarray.apply_ufunc` for options
+) -> xr.DataArray:
+    """
+    Calculates the probabilistic Fractions Skill Score (pFSS).
+
+    Args:
+        fcst: Ensemble forecast as an xarray DataArray.
+        obs: Observations as an xarray DataArray.
+        event_threshold: Threshold for the event to be considered in the FSS calculation.
+        window_size: Size of the spatial window for the FSS calculation.
+        spatial_dims: Tuple of names of the spatial dimensions in the DataArray.
+        ensemble_member_dim: Name of the ensemble member dimension in the forecast DataArray.
+        zero_padding: Whether to use zero padding when computing the FSS.
+        reduce_dims: Dimensions to reduce over when computing the FSS.
+        preserve_dims: Dimensions to preserve when computing the FSS.
+        threshold_operator: Callable to apply the threshold, defaults to np.greater if None.
+        compute_method: Method to use for computing the FSS, defaults to FssComputeMethod.NUMPY.
+        dask: Dask handling strategy, defaults to "forbidden".
+
+    Returns:
+        Probabilistic Fractions Skill Score as an xarray DataArray.
+    """
+    dims_to_reduce = gather_dimensions(
+        fcst.dims,
+        obs.dims,
+        reduce_dims=reduce_dims,
+        preserve_dims=preserve_dims,
+        score_specific_fcst_dims=ensemble_member_dim,
+    )
+
+    np_thrsh_op = _make_numpy_threshold_operator(threshold_operator).get()
+
+    fcst_prob = np_thrsh_op(fcst, event_threshold).where(fcst.notnull()).mean(ensemble_member_dim)
+    obs_events = np_thrsh_op(obs, event_threshold).where(obs.notnull())
+    valid = fcst_prob.notnull() & obs_events.notnull()
+    fcst_prob = fcst_prob.where(valid, 0.0)
+    obs_events = obs_events.where(valid, 0.0)
+
+    pfss = fss_2d_binary(
+        fcst_prob,
+        obs_events,
+        window_size=window_size,
+        spatial_dims=spatial_dims,
+        check_boolean=False,
+        zero_padding=zero_padding,
+        reduce_dims=dims_to_reduce,
+        compute_method=compute_method,
+        dask=dask,
+    )
+    # Mask results where data was missing.
+    pfss = pfss.where(valid.any(dim=[d for d in valid.dims if d not in pfss.dims]))
+    return pfss
