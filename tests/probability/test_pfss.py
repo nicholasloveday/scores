@@ -347,15 +347,51 @@ def test_transposed_arrays():
     xr.testing.assert_allclose(result, xr.DataArray(EXP2))
 
 
-# Test ens mem dim not in fcst
-# Test ens mem dim in obs
-# Test ens mem dim in reduce dims
-# Test ens mem dim in preserve dims
-# Test threshold_operator not supported
-def test_pfss_raises():
+@pytest.mark.parametrize(
+    "obs, reduce_dims, preserve_dims, threshold_operator, ensemble_member_dim, msg",
+    [
+        # Test ens mem dim not in fcst
+        (OBS, None, None, None, "wrong_dim", "`score_specific_fcst_dims` must be a subset of `fcst` dimensions"),
+        # Test ens mem dim in obs
+        (FCST, None, None, None, "ens_mem", "`obs.dims` must not contain any `score_specific_fcst_dims`"),
+        # Test ens mem dim in reduce dims
+        (
+            OBS,
+            ("ens_mem",),
+            None,
+            None,
+            "ens_mem",
+            "`reduce_dims` and `preserve_dims` must not contain any `score_specific_fcst_dims`",
+        ),
+        # Test ens mem dim in preserve dims
+        (
+            OBS,
+            None,
+            ("ens_mem",),
+            None,
+            "ens_mem",
+            "`reduce_dims` and `preserve_dims` must not contain any `score_specific_fcst_dims`",
+        ),
+        # Test threshold_operator not supported
+        (OBS, None, None, np.equal, "ens_mem", "Invalid operator specified. Allowed operators:"),
+    ],
+)
+def test_pfss_raises(obs, reduce_dims, preserve_dims, threshold_operator, ensemble_member_dim, msg):
     """
     Test that the pFSS raises appropriate errors for invalid inputs.
     """
+    with pytest.raises(ValueError, match=msg):
+        pfss_for_ensemble(
+            FCST,
+            obs,
+            event_threshold=2,
+            window_size=(2, 2),
+            ensemble_member_dim=ensemble_member_dim,
+            spatial_dims=("x", "y"),
+            reduce_dims=reduce_dims,
+            preserve_dims=preserve_dims,
+            threshold_operator=threshold_operator,
+        )
 
 
 # Test Dimension warning

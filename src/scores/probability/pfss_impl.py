@@ -180,8 +180,6 @@ def pfss_for_ensemble(  # pylint: disable=too-many-locals,too-many-arguments
         check_boolean=False,
         zero_padding=zero_padding,
         reduce_dims=dims_to_reduce,
-        compute_method=compute_method,
-        dask=dask,
     )
     # Mask results where data was missing.
     # Also, where there are no events in either forecast or observation, mask the result
