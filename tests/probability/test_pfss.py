@@ -77,6 +77,7 @@ from scores.spatial.fss_impl import fss_2d
             None,
             None,
         ),
+        # Test zero_padding argument
         (
             (2, 2),
             5.0,
@@ -85,6 +86,7 @@ from scores.spatial.fss_impl import fss_2d
             True,
             None,
         ),
+        # Test threshold_operator argument
         (
             (2, 2),
             5.0,
@@ -135,13 +137,49 @@ def test_pfss_equals_fss_for_single_member(
     xr.testing.assert_equal(pfss_score, fss_score)
 
 
-# 2 members, 1x1 window
-# 2 members, 2x2 window
-def test_multiple_ens_members():
+
+# EXP1_NUM = (((fcst > 2).mean(dim="ens_mem") - (obs>2))**2).sum()
+# EXP1_DEN = ((fcst > 2).mean(dim="ens_mem")**2).sum() + ((obs>2)**2).sum()
+# EXP1 = 1 - EXP1_NUM / EXP1_DEN
+EXP1 = xr.DataArray(1 - 3.25/8.25)  # See my calculation above
+
+# fcst_frac = (fcst > 2).mean("ens_mem").rolling(x=2, y=2).mean()
+# obs_frac = (obs > 2).rolling(x=2, y=2).mean()
+# expected_frac = 1 - ((fcst_frac - obs_frac)**2).sum() / ((fcst_frac**2).sum() + (obs_frac**2).sum())
+EXP2 = xr.DataArray(0.69242658)  # See my calculation above
+@pytest.mark.parametrize(("window_size", "expected"), [((1, 1), EXP1), ((2, 2), EXP2)])
+def test_multiple_ens_members(window_size, expected):
     """
     Test that the pFSS for multiple ensemble members returns the correct score
     """
-    pass
+    fcst = xr.DataArray(
+        [
+            # member 1
+            [[0, 3, 3, 0], [0, 3, 2, 0], [4, 0, 0, 0], [4, 4, 0, 0]],
+            # member 2
+            [[0, 3, 0, 0], [0, 2, 2, 0], [4, 0, 0, 3], [0, 4, 0, 0]],
+            # member 3
+            [[0, 0, 0, 0], [3, 0, 2, 0], [0, 0, 50, 3], [0, 3, 0, -9]],
+            # member 4
+            [[0, 0, 0, 100], [0, 0, 0, 0], [0, 0, 3, 3], [0, 0, 0, 3]],
+        ],
+        dims=["ens_mem", "x", "y"],
+        coords={"ens_mem": [1, 2, 3, 4], "x": [0, 1, 2, 3], "y": [0, 1, 2, 3]},
+    )
+    obs = xr.DataArray(
+        [[0, 3, 3, 0], [0, 3, 2, 0], [4, 0, 0, 1], [4, 4, 0, 0]],
+        dims=["x", "y"],
+        coords={"x": [0, 1, 2, 3], "y": [0, 1, 2, 3]},
+    )
+    pfss_score = pfss_for_ensemble(
+        fcst,
+        obs,
+        event_threshold=2,
+        window_size=window_size,
+        ensemble_member_dim="ens_mem",
+        spatial_dims=("x", "y"),
+    )
+    xr.testing.assert_allclose(pfss_score, expected)
 
 
 def test_identical_mems_equal_one_mem():
