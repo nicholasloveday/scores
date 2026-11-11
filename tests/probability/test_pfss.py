@@ -42,8 +42,28 @@ FCST_PERFECT = OBS.expand_dims(ens_mem=[1, 2, 3, 4])
 
 FCST_EXTRA_DIM = FCST.expand_dims(time=[1, 2])
 
+FCST_EXTRA_DIM_NAN = FCST_EXTRA_DIM.astype(float).copy()
+FCST_EXTRA_DIM_NAN.loc[{"time": 1}] = np.nan
+
 OBS_SINGLE_NAN = OBS.astype(float).copy()
 OBS_SINGLE_NAN.loc[{"x": 1, "y": 1}] = np.nan
+
+OBS_EXTRA_DIM = OBS.expand_dims(time=[1, 2])
+OBS_EXTRA_DIM_NAN = OBS_EXTRA_DIM.astype(float).copy()
+OBS_EXTRA_DIM_NAN.loc[{"time": 1}] = np.nan
+
+# EXP1_NUM = (((fcst > 2).mean(dim="ens_mem") - (obs>2))**2).sum()
+# EXP1_DEN = ((fcst > 2).mean(dim="ens_mem")**2).sum() + ((obs>2)**2).sum()
+# EXP1 = 1 - EXP1_NUM / EXP1_DEN
+EXP1 = xr.DataArray(1 - 3.25 / 8.25)  # See my calculation above
+
+# fcst_frac = (fcst > 2).mean("ens_mem").rolling(x=2, y=2).mean()
+# obs_frac = (obs > 2).rolling(x=2, y=2).mean()
+# expected_frac = 1 - ((fcst_frac - obs_frac)**2).sum() / ((fcst_frac**2).sum() + (obs_frac**2).sum())
+EXP2 = xr.DataArray(0.69242658)  # See my calculation above
+
+EXP_EXTRA_DIM_NAN = xr.DataArray(EXP2).expand_dims(time=[1, 2]).copy()
+EXP_EXTRA_DIM_NAN.loc[{"time": 1}] = np.nan
 
 
 @pytest.mark.filterwarnings("ignore::scores.utils.DimensionWarning")
@@ -173,17 +193,6 @@ def test_pfss_equals_fss_for_single_member(
     xr.testing.assert_equal(pfss_score, fss_score)
 
 
-# EXP1_NUM = (((fcst > 2).mean(dim="ens_mem") - (obs>2))**2).sum()
-# EXP1_DEN = ((fcst > 2).mean(dim="ens_mem")**2).sum() + ((obs>2)**2).sum()
-# EXP1 = 1 - EXP1_NUM / EXP1_DEN
-EXP1 = xr.DataArray(1 - 3.25 / 8.25)  # See my calculation above
-
-# fcst_frac = (fcst > 2).mean("ens_mem").rolling(x=2, y=2).mean()
-# obs_frac = (obs > 2).rolling(x=2, y=2).mean()
-# expected_frac = 1 - ((fcst_frac - obs_frac)**2).sum() / ((fcst_frac**2).sum() + (obs_frac**2).sum())
-EXP2 = xr.DataArray(0.69242658)  # See my calculation above
-
-
 @pytest.mark.parametrize(("window_size", "expected"), [((1, 1), EXP1), ((2, 2), EXP2)])
 def test_multiple_ens_members(window_size, expected):
     """
@@ -251,24 +260,26 @@ def test_identical_mems_equal_one_mem():
 
 
 @pytest.mark.parametrize(
-    ("fcst", "obs", "expected"),
+    ("fcst", "obs", "preserve_dims", "expected"),
     [
         # Test with a single NaN in the forecast
         # Note that naively using the method to calc `EXP2` above would fail.
-        (FCST_SINGLE_NAN, OBS, xr.DataArray(0.71387527)),
+        (FCST_SINGLE_NAN, OBS, None, xr.DataArray(0.71387527)),
         # Test with a single Obs NaN in the observation
-        (FCST, OBS_SINGLE_NAN, xr.DataArray(0.68997669)),
+        (FCST, OBS_SINGLE_NAN, None, xr.DataArray(0.68997669)),
         # Test with all NaNs in the forecast
-        (FCST * np.nan, OBS, xr.DataArray(np.nan)),
+        (FCST * np.nan, OBS, None, xr.DataArray(np.nan)),
         # Test with all NaNs in the observation
-        (FCST, OBS * np.nan, xr.DataArray(np.nan)),
+        (FCST, OBS * np.nan, None, xr.DataArray(np.nan)),
         # Test with all NaNs in one ensemble member
-        (FCST_MEM_1_NAN, OBS, xr.DataArray(0.44875346)),
+        (FCST_MEM_1_NAN, OBS, None, xr.DataArray(0.44875346)),
         # Test with all NaNs at a single point
-        (FCST_POINT_ALL_NAN, OBS, xr.DataArray(0.68997669)),
+        (FCST_POINT_ALL_NAN, OBS, None, xr.DataArray(0.68997669)),
+        # Test with a single NaN in the extra dimension
+        (FCST_EXTRA_DIM_NAN, OBS_EXTRA_DIM, "time", EXP_EXTRA_DIM_NAN),
     ],
 )
-def test_pffs_nan_handling(fcst, obs, expected):
+def test_pffs_nan_handling(fcst, obs, preserve_dims, expected):
     """
     Test that the pFSS correctly handles NaN values in the forecast and observation data.
 
@@ -288,8 +299,10 @@ def test_pffs_nan_handling(fcst, obs, expected):
         window_size=(2, 2),
         ensemble_member_dim="ens_mem",
         spatial_dims=("x", "y"),
+        preserve_dims=preserve_dims,
     )
     xr.testing.assert_allclose(result, expected)
+
 
 def test_broadcasting():
     """
@@ -302,9 +315,10 @@ def test_broadcasting():
         window_size=(2, 2),
         ensemble_member_dim="ens_mem",
         spatial_dims=("x", "y"),
-        preserve_dims=("time")
+        preserve_dims=("time"),
     )
     xr.testing.assert_allclose(result, xr.DataArray(EXP2).expand_dims(time=[1, 2]))
+
 
 def test_transposed_arrays():
     """
@@ -320,6 +334,7 @@ def test_transposed_arrays():
         spatial_dims=("x", "y"),
     )
     xr.testing.assert_allclose(result, xr.DataArray(EXP2))
+
 
 # Test ens mem dim not in fcst
 # Test ens mem dim in obs
