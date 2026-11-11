@@ -231,6 +231,28 @@ def test_perfect(fcst, obs, exp):
     xr.testing.assert_equal(pfss_score, exp)
 
 
+@pytest.mark.parametrize(
+    ("fcst", "obs"),
+    [
+        (FCST, OBS * 0),
+        (FCST * 0, OBS),
+    ],
+)
+def test_no_skill(fcst, obs):
+    """
+    Test that a forecast with no skill returns a score of zero.
+    """
+    pfss_score = pfss_for_ensemble(
+        fcst,
+        obs,
+        event_threshold=2,
+        window_size=(2, 2),
+        ensemble_member_dim="ens_mem",
+        spatial_dims=("x", "y"),
+    )
+    xr.testing.assert_equal(pfss_score, xr.DataArray(0))
+
+
 def test_identical_mems_equal_one_mem():
     """
     Test that identical ensemble members produce the same pFSS as a single-member ensemble.
