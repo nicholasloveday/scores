@@ -102,8 +102,7 @@ def pfss_for_ensemble(  # pylint: disable=too-many-locals,too-many-arguments
         ``reduce_dims`` / ``preserve_dims``. ``ensemble_member_dim`` is never present in the output.
         If neither is specified, all dimensions are reduced and a single value is returned.
         The score takes values between 0 and 1, where 1 is a perfect score. If no events are forecast
-        or observed in the data being aggregated, the score is 0, consistent with
-        :py:func:`scores.spatial.fss_2d`.
+        or observed in the data being aggregated, the score is np.nan.
 
     Raises:
         AlignmentError: If ``fcst`` and ``obs`` do not have matching coordinates on the dimensions

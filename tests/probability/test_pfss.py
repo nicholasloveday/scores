@@ -275,8 +275,10 @@ def test_identical_mems_equal_one_mem():
         (FCST_MEM_1_NAN, OBS, None, xr.DataArray(0.44875346)),
         # Test with all NaNs at a single point
         (FCST_POINT_ALL_NAN, OBS, None, xr.DataArray(0.68997669)),
-        # Test with a single NaN in the extra dimension
+        # Test with a single NaN in the extra dimension, preserve the time dimension
         (FCST_EXTRA_DIM_NAN, OBS_EXTRA_DIM, "time", EXP_EXTRA_DIM_NAN),
+        # Test with a single NaN in the extra dimension, don't preserve the time dimension
+        (FCST_EXTRA_DIM_NAN, OBS_EXTRA_DIM, None, EXP2),
     ],
 )
 def test_pffs_nan_handling(fcst, obs, preserve_dims, expected):
