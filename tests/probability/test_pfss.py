@@ -13,6 +13,7 @@ from scores import sample_data as sd
 from scores.probability import pfss_for_ensemble
 from scores.spatial.fss_impl import fss_2d
 from scores.utils import DimensionError
+import scores.spatial
 
 FCST = xr.DataArray(
     [
@@ -409,3 +410,15 @@ def test_pfss_raises(obs, reduce_dims, preserve_dims, threshold_operator, ensemb
             preserve_dims=preserve_dims,
             threshold_operator=threshold_operator,
         )
+
+
+def test_pfss_from_spatial():
+    """
+    Test that we can also import pfss from scores.spatial.
+    """
+    from scores.spatial import pfss_for_ensemble as spatial_pfss # pylint: disable=import-outside-toplevel
+    assert pfss_for_ensemble is spatial_pfss
+    assert "pfss_for_ensemble" in scores.spatial.__all__
+
+    with pytest.raises(AttributeError, match="has no attribute 'fake_function'"):
+        getattr(scores.spatial, "fake_function")
