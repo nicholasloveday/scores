@@ -12,6 +12,7 @@ import xarray as xr
 from scores import sample_data as sd
 from scores.probability import pfss_for_ensemble
 from scores.spatial.fss_impl import fss_2d
+from scores.utils import DimensionError
 
 FCST = xr.DataArray(
     [
@@ -348,12 +349,20 @@ def test_transposed_arrays():
 
 
 @pytest.mark.parametrize(
-    "obs, reduce_dims, preserve_dims, threshold_operator, ensemble_member_dim, msg",
+    "obs, reduce_dims, preserve_dims, threshold_operator, ensemble_member_dim, msg, err",
     [
         # Test ens mem dim not in fcst
-        (OBS, None, None, None, "wrong_dim", "`score_specific_fcst_dims` must be a subset of `fcst` dimensions"),
+        (
+            OBS,
+            None,
+            None,
+            None,
+            "wrong_dim",
+            "`score_specific_fcst_dims` must be a subset of `fcst` dimensions",
+            ValueError,
+        ),
         # Test ens mem dim in obs
-        (FCST, None, None, None, "ens_mem", "`obs.dims` must not contain any `score_specific_fcst_dims`"),
+        (FCST, None, None, None, "ens_mem", "`obs.dims` must not contain any `score_specific_fcst_dims`", ValueError),
         # Test ens mem dim in reduce dims
         (
             OBS,
@@ -362,6 +371,7 @@ def test_transposed_arrays():
             None,
             "ens_mem",
             "`reduce_dims` and `preserve_dims` must not contain any `score_specific_fcst_dims`",
+            ValueError,
         ),
         # Test ens mem dim in preserve dims
         (
@@ -371,21 +381,28 @@ def test_transposed_arrays():
             None,
             "ens_mem",
             "`reduce_dims` and `preserve_dims` must not contain any `score_specific_fcst_dims`",
+            ValueError,
         ),
         # Test threshold_operator not supported
-        (OBS, None, None, np.equal, "ens_mem", "Invalid operator specified. Allowed operators:"),
+        (OBS, None, None, np.equal, "ens_mem", "Invalid operator specified. Allowed operators:", ValueError),
+        # Test misaligned coordinates
+        (OBS, None, None, None, "ens_mem", "invalid window size,", DimensionError),
     ],
 )
-def test_pfss_raises(obs, reduce_dims, preserve_dims, threshold_operator, ensemble_member_dim, msg):
+def test_pfss_raises(obs, reduce_dims, preserve_dims, threshold_operator, ensemble_member_dim, msg, err):
     """
     Test that the pFSS raises appropriate errors for invalid inputs.
     """
-    with pytest.raises(ValueError, match=msg):
+    window_size = (2, 2)
+    if err is DimensionError:
+        window_size = (10, 10)
+
+    with pytest.raises(err, match=msg):
         pfss_for_ensemble(
             FCST,
             obs,
             event_threshold=2,
-            window_size=(2, 2),
+            window_size=window_size,
             ensemble_member_dim=ensemble_member_dim,
             spatial_dims=("x", "y"),
             reduce_dims=reduce_dims,

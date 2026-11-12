@@ -4,13 +4,14 @@ Implementation of the probabilistic Fractions Skill Score (pFSS) for ensemble fo
 
 from typing import Callable, Optional, Tuple
 
+import numpy as np
 import xarray as xr
 
 from scores.spatial.fss_impl import (
-    FlexibleDimensionTypes,
     _make_numpy_threshold_operator,
     fss_2d_binary,
 )
+from scores.typing import FlexibleDimensionTypes
 from scores.utils import gather_dimensions
 
 
@@ -25,7 +26,7 @@ def pfss_for_ensemble(  # pylint: disable=too-many-locals,too-many-arguments
     zero_padding: bool = False,
     reduce_dims: Optional[FlexibleDimensionTypes] = None,
     preserve_dims: Optional[FlexibleDimensionTypes] = None,
-    threshold_operator: Optional[Callable] = None,
+    threshold_operator: Optional[Callable] = np.greater,
 ) -> xr.DataArray:
     """
     Calculates the probabilistic Fractions Skill Score (pFSS) for an ensemble forecast.
@@ -77,13 +78,13 @@ def pfss_for_ensemble(  # pylint: disable=too-many-locals,too-many-arguments
             data field before computing the FSS. If set to false (default), it
             uses the edges (thickness = window size) of the input fields as the border.
             One can think of it as:
+
             - zero_padding = False => inner border
             - zero_padding = True => outer border with 0 values
         reduce_dims: Optional set of additional dimensions to aggregate over
             (mutually exclusive to ``preserve_dims``).
         preserve_dims: Optional set of dimensions to keep (all other dimensions
-            are reduced); By default all dimensions except ``spatial_dims``
-            are preserved (mutually exclusive to ``reduce_dims``).
+            are reduced). Cannot preserve spatial dimensions.
         threshold_operator: The threshold operator used to generate the binary
             event field. E.g. ``np.greater``. Note: this may depend on the backend
             ``compute method`` and not all operators may be supported. Generally,
@@ -99,18 +100,12 @@ def pfss_for_ensemble(  # pylint: disable=too-many-locals,too-many-arguments
         or observed in the data being aggregated, the score is NaN.
 
     Raises:
-        AlignmentError: If ``fcst`` and ``obs`` do not have matching coordinates on the dimensions
-            they share, e.g. if their spatial extents differ. This is raised by ``xarray``.
-
         DimensionError: If the window size is larger than the input arrays or is not a pair of
             positive integers, or if ``spatial_dims`` are not a pair of dimensions present in both
             ``fcst`` and ``obs``.
 
         ValueError: If ``ensemble_member_dim`` is not in ``fcst.dims``, if it is in ``obs.dims``, ``reduce_dims``
             or ``preserve_dims``, or if ``threshold_operator`` is not a supported operator.
-
-        AlignmentError: If ``fcst`` and ``obs`` do not have matching coordinates on the dimensions
-            they share, e.g. if their spatial extents differ. This is raised by ``xarray``.
 
         DimensionWarning: If ``spatial_dims`` are attempting to be preserved e.g. in ``preserve_dims``
 
