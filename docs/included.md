@@ -274,7 +274,7 @@ It is divided into the following sections: [continuous](#continuous), [probabili
   - [Ehm et al. (2016) - Corollary 2 (p.521)](https://doi.org/10.1111/rssb.12154); [Taggart (2022) - Corollary 5.6](https://doi.org/10.1214/21-ejs1957)
 * - Probabilistic Fractions Skill Score (pFSS) for Ensembles
   - [API](api.md#scores.probability.pfss_for_ensemble)
-  - &mdash;
+  - [Tutorial](project:./tutorials/Probabilistic_Fractions_Skill_Score.md)
   - [Necker et al. (2024)](https://doi.org/10.1002/qj.4824)
 * - Probability Integral Transform (PIT)
   -
@@ -606,7 +606,7 @@ It is divided into the following sections: [continuous](#continuous), [probabili
   - [Roberts and Lean (2008)](https://doi.org/10.1175/2007mwr2123.1); [Faggian et al. (2015)](https://doi.org/10.54302/mausam.v66i3.555)
 * - Probabilistic Fractions Skill Score (pFSS) for Ensembles
   - [API](api.md#scores.spatial.pfss_for_ensemble)
-  - &mdash;
+  - [Tutorial](project:./tutorials/Probabilistic_Fractions_Skill_Score.md)
   - [Necker et al. (2024)](https://doi.org/10.1002/qj.4824)
 ```
 
