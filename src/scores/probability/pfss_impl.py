@@ -12,7 +12,7 @@ from scores.spatial.fss_impl import (
     fss_2d_binary,
 )
 from scores.typing import FlexibleDimensionTypes
-from scores.utils import gather_dimensions
+from scores.utils import DimensionError, gather_dimensions
 
 
 def pfss_for_ensemble(  # pylint: disable=too-many-locals,too-many-arguments
@@ -100,6 +100,8 @@ def pfss_for_ensemble(  # pylint: disable=too-many-locals,too-many-arguments
         or observed in the data being aggregated, the score is NaN.
 
     Raises:
+        DimensionError: If any of the specified ``spatial_dims`` are not present in both ``fcst`` and ``obs``.
+        
         DimensionError: If the window size is larger than the input arrays or is not a pair of
             positive integers, or if ``spatial_dims`` are not a pair of dimensions present in both
             ``fcst`` and ``obs``.
@@ -146,6 +148,11 @@ def pfss_for_ensemble(  # pylint: disable=too-many-locals,too-many-arguments
         array(0.97991968)
 
     """
+    if any(dim not in fcst.dims for dim in spatial_dims):
+        raise DimensionError(f"Spatial dimension(s) {spatial_dims} not found in forecast dimensions.")
+    if any(dim not in obs.dims for dim in spatial_dims):
+        raise DimensionError(f"Spatial dimension(s) {spatial_dims} not found in observation dimensions.")
+    
     dims_to_reduce = gather_dimensions(
         fcst.dims,
         obs.dims,
