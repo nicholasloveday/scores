@@ -65,7 +65,7 @@ def pfss_for_ensemble(  # pylint: disable=too-many-locals,too-many-arguments
         fcst: An array of forecasts. Must contain ``spatial_dims`` and ``ensemble_member_dim``.
         obs: An array of observations (same spatial shape as ``fcst``)
         event_threshold: A scalar to compare ``fcst`` and ``obs`` fields to generate a
-            binary "event" field. (defaults to ``np.greater``).
+            binary "event" field.
         window_size: A pair of positive integers ``(height, width)`` of the sliding
             window_size; the window size must be greater than 0 and fit within
             the shape of ``obs`` and ``fcst``.
@@ -86,9 +86,7 @@ def pfss_for_ensemble(  # pylint: disable=too-many-locals,too-many-arguments
         preserve_dims: Optional set of dimensions to keep (all other dimensions
             are reduced). Cannot preserve spatial dimensions.
         threshold_operator: The threshold operator used to generate the binary
-            event field. E.g. ``np.greater``. Note: this may depend on the backend
-            ``compute method`` and not all operators may be supported. Generally,
-            ``np.greater``, ``np.less`` and their counterparts. Defaults to "np.greater".
+            event field. E.g. ``np.greater``. Defaults to "np.greater".
 
     Returns:
         An ``xarray.DataArray`` containing the pFSS computed over the ``spatial_dims``.
@@ -100,8 +98,6 @@ def pfss_for_ensemble(  # pylint: disable=too-many-locals,too-many-arguments
         or observed in the data being aggregated, the score is NaN.
 
     Raises:
-        DimensionError: If any of the specified ``spatial_dims`` are not present in both ``fcst`` and ``obs``.
-        
         DimensionError: If the window size is larger than the input arrays or is not a pair of
             positive integers, or if ``spatial_dims`` are not a pair of dimensions present in both
             ``fcst`` and ``obs``.
@@ -152,7 +148,7 @@ def pfss_for_ensemble(  # pylint: disable=too-many-locals,too-many-arguments
         raise DimensionError(f"Spatial dimension(s) {spatial_dims} not found in forecast dimensions.")
     if any(dim not in obs.dims for dim in spatial_dims):
         raise DimensionError(f"Spatial dimension(s) {spatial_dims} not found in observation dimensions.")
-    
+
     dims_to_reduce = gather_dimensions(
         fcst.dims,
         obs.dims,
@@ -163,7 +159,8 @@ def pfss_for_ensemble(  # pylint: disable=too-many-locals,too-many-arguments
 
     np_thrsh_op = _make_numpy_threshold_operator(threshold_operator).get()
 
-    fcst_prob = np_thrsh_op(fcst, event_threshold).where(fcst.notnull()).mean(ensemble_member_dim)
+    n_fcst_valid = fcst.count(ensemble_member_dim)
+    fcst_prob = np_thrsh_op(fcst, event_threshold).sum(ensemble_member_dim) / n_fcst_valid.where(n_fcst_valid > 0)
     obs_events = np_thrsh_op(obs, event_threshold).where(obs.notnull())
     valid = fcst_prob.notnull() & obs_events.notnull()
     fcst_prob = fcst_prob.where(valid, 0.0)

@@ -9,11 +9,11 @@ import numpy as np
 import pytest
 import xarray as xr
 
+import scores.spatial
 from scores import sample_data as sd
 from scores.probability import pfss_for_ensemble
 from scores.spatial.fss_impl import fss_2d
 from scores.utils import DimensionError
-import scores.spatial
 
 FCST = xr.DataArray(
     [
@@ -367,7 +367,16 @@ def test_transposed_arrays():
             ValueError,
         ),
         # Test ens mem dim in obs
-        (FCST, FCST, None, None, None, "ens_mem", "`obs.dims` must not contain any `score_specific_fcst_dims`", ValueError),
+        (
+            FCST,
+            FCST,
+            None,
+            None,
+            None,
+            "ens_mem",
+            "`obs.dims` must not contain any `score_specific_fcst_dims`",
+            ValueError,
+        ),
         # Test ens mem dim in reduce dims
         (
             FCST,
@@ -426,7 +435,8 @@ def test_pfss_from_spatial():
     """
     Test that we can also import pfss from scores.spatial.
     """
-    from scores.spatial import pfss_for_ensemble as spatial_pfss # pylint: disable=import-outside-toplevel
+    from scores.spatial import pfss_for_ensemble as spatial_pfss  # pylint: disable=import-outside-toplevel
+
     assert pfss_for_ensemble is spatial_pfss
     assert "pfss_for_ensemble" in scores.spatial.__all__
 
